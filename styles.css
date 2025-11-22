@@ -35,6 +35,41 @@ body {
     line-height: 1.15
 }
 
+/* Accessibility helpers */
+:root {
+    --base-font: 16px;
+    --large-font: 20px;
+    --huge-font: 24px;
+}
+
+.accessible {
+    font-size: var(--large-font);
+    line-height: 1.6;
+}
+
+.accessible .title {
+    font-size: var(--huge-font);
+}
+
+.accessible .lead,
+.accessible .log p,
+.accessible .log h2 {
+    font-size: var(--large-font);
+}
+
+.high-contrast {
+    background: #000 !important;
+    color: #fff !important;
+}
+
+.consultation {
+    font-size: 16px;
+}
+
+.large-text {
+    font-size: 18px !important;
+}
+
 .cross {
     width: 96px;
     height: 96px;

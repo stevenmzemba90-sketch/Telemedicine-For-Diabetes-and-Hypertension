@@ -14,6 +14,23 @@
             <h1>Admin Dashboard</h1>
             <p id="welcome">Loading...</p>
             <button id="signout" class="btn signin">Sign out</button>
+            <div style="margin-top:8px">
+                <button id="a11y-toggle" class="btn signup">Toggle Large Text</button>
+                <button id="contrast-toggle" class="btn signin">Toggle High Contrast</button>
+            </div>
+
+            <section
+                style="margin-top:12px; text-align:left; background:rgba(255,255,255,0.06); padding:10px; border-radius:6px">
+                <h3>Send Schedule / Calendar</h3>
+                <label>Date/time: <input id="sched-date" type="datetime-local" /></label><br>
+                <label>Message:<br><textarea id="sched-msg" rows="3" style="width:100%"></textarea></label>
+                <div style="margin-top:6px">
+                    <label><input type="checkbox" id="t-cashier" checked /> Cashier</label>
+                    <label><input type="checkbox" id="t-provider" checked /> Provider</label>
+                    <label><input type="checkbox" id="t-pharma" checked /> Pharmacist</label>
+                </div>
+                <button id="send-sched" class="btn signup" style="margin-top:8px">Send Schedule</button>
+            </section>
 
             <section>
                 <h2>All Consultations</h2>
@@ -42,6 +59,22 @@
 
             load();
             setInterval(load, 20000);
+            document.getElementById('a11y-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('accessible'); });
+            document.getElementById('contrast-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('high-contrast'); });
+
+            document.getElementById('send-sched').addEventListener('click', async () => {
+                const date = document.getElementById('sched-date').value;
+                const message = document.getElementById('sched-msg').value.trim();
+                const targets = [];
+                if (document.getElementById('t-cashier').checked) targets.push('cashier');
+                if (document.getElementById('t-provider').checked) targets.push('provider');
+                if (document.getElementById('t-pharma').checked) targets.push('pharmacist');
+                if (!message || !date) return alert('Please provide date and message');
+                try {
+                    await sendSchedule({ date, message, targets });
+                    alert('Schedule sent');
+                } catch (e) { alert('Failed to send schedule'); }
+            });
         })();
     </script>
 </body>

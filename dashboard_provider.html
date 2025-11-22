@@ -22,6 +22,10 @@
             <h1>Healthcare Provider Dashboard</h1>
             <p id="welcome">Loading...</p>
             <button id="signout" class="btn signin">Sign out</button>
+            <div style="margin-top:8px">
+                <button id="a11y-toggle" class="btn signup">Toggle Large Text</button>
+                <button id="contrast-toggle" class="btn signin">Toggle High Contrast</button>
+            </div>
 
             <section>
                 <h2>Today's Consultations (from Cashier)</h2>
@@ -96,6 +100,14 @@
                     });
                 });
             }
+
+            // accessibility controls
+            document.getElementById('a11y-toggle').addEventListener('click', () => {
+                document.querySelector('.container').classList.toggle('accessible');
+            });
+            document.getElementById('contrast-toggle').addEventListener('click', () => {
+                document.querySelector('.container').classList.toggle('high-contrast');
+            });
 
             load();
             // refresh periodically

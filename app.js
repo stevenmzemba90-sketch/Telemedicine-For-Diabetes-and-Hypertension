@@ -1,17 +1,23 @@
 // app.js — Supabase-enabled workflow with localStorage fallback
-// EDIT the following two constants with your Supabase project values
-const SUPABASE_URL = "https://your-project.supabase.co";
-const SUPABASE_ANON_KEY = "your-anon-key";
+// Configuration: create a `config.js` (ignored by git) or set `window.APP_CONFIG` before this script loads.
+// See `config.example.js` for the format.
+const DEFAULT_SUPABASE_URL = "https://your-project.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "your-anon-key";
 
-const useLocalFallback = SUPABASE_URL.includes("your-project") || SUPABASE_ANON_KEY.includes("your-anon-key");
+// Read runtime config from `window.APP_CONFIG` if provided; otherwise fall back to constants above.
+const SUPABASE_URL = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+const SUPABASE_ANON_KEY = (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY;
+
+const useLocalFallback = SUPABASE_URL === DEFAULT_SUPABASE_URL || SUPABASE_ANON_KEY === DEFAULT_SUPABASE_ANON_KEY;
 
 let supabaseClient = null;
 if (!useLocalFallback) {
-    // Initialize supabase client
+    // Initialize supabase client (guarded)
     try {
         supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     } catch (err) {
         console.error('Supabase init error:', err);
+        supabaseClient = null;
     }
 }
 
@@ -60,6 +66,11 @@ function groupPatients(cons) {
 // Backend relay (optional local server to persist queue)
 const BACKEND_URL = 'http://localhost:4000/queue';
 
+// Backend helper endpoints for notifications and sms
+const BACKEND_BASE = BACKEND_URL.replace(/\/queue$/, '/');
+const BACKEND_NOTIFY = BACKEND_BASE + 'notify';
+const BACKEND_SMS = BACKEND_BASE + 'sms';
+
 // Outbox helpers: items waiting to be pushed to Supabase
 function outboxGet() { return _lsGet('outbox'); }
 function outboxSet(arr) { _lsSet('outbox', arr); }
@@ -92,6 +103,33 @@ async function syncOutbox() {
     } catch (err) {
         console.warn('No backend to sync to yet', err);
     }
+}
+
+// Notification helpers (post to local backend which will persist notifications)
+async function notifyRole(role, payload) {
+    try {
+        await fetch(BACKEND_NOTIFY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, payload, ts: new Date().toISOString() }) });
+    } catch (err) {
+        console.warn('Notify backend failed', err);
+    }
+}
+
+async function sendSMS(phone, message) {
+    if (!phone) return;
+    try {
+        await fetch(BACKEND_SMS, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: phone, message }) });
+    } catch (err) {
+        console.warn('SMS backend failed', err);
+    }
+}
+
+// Admin schedule send helper
+async function sendSchedule({ date, message, targets = ['cashier', 'provider', 'pharmacist'] }) {
+    const payload = { date, message };
+    if (supabaseClient) {
+        try { await supabaseClient.from('schedules').insert({ date, message }).select(); } catch (e) { }
+    }
+    for (const r of targets) notifyRole(r, { type: 'schedule', date, message });
 }
 
 // Local fallback storage helpers (simple simulation)
@@ -172,6 +210,11 @@ async function providerUpdate({ consultation_code, notes, medication_refill }) {
         arr[idx].provider_updated_at = new Date().toISOString();
         arr[idx].status = 'provider-updated';
         _lsSet('consultations', arr);
+        // notify pharmacist and optionally send SMS to patient
+        notifyRole('pharmacist', { consultation_code: consultation_code, patient_name: arr[idx].patient_name, notes: notes });
+        sendSMS(arr[idx].contact_primary || arr[idx].contact_secondary || null, `Provider update for ${arr[idx].patient_name}: ${notes || 'No notes'}`);
+        // post to backend queue for record-keeping
+        try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'provider-update', consultation: arr[idx] }]) }); } catch (e) { }
         return { data: arr[idx], error: null };
     }
 
@@ -181,6 +224,12 @@ async function providerUpdate({ consultation_code, notes, medication_refill }) {
         .eq('consultation_code', consultation_code)
         .select()
         .single();
+
+    if (!error && data) {
+        notifyRole('pharmacist', { consultation_code: consultation_code, patient_name: data.patient_name, notes });
+        sendSMS(data.contact_primary || data.contact || null, `Provider update for ${data.patient_name}: ${notes || 'No notes'}`);
+        try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'provider-update', consultation: data }]) }); } catch (e) { }
+    }
 
     return { data, error };
 }
@@ -194,6 +243,10 @@ async function pharmacyUpdate({ consultation_code, dispensed }) {
         arr[idx].pharmacy_updated_at = new Date().toISOString();
         arr[idx].status = dispensed ? 'med-dispensed' : arr[idx].status;
         _lsSet('consultations', arr);
+        // notify cashier and admin that medication was dispensed
+        notifyRole('cashier', { consultation_code: consultation_code, patient_name: arr[idx].patient_name, dispensed });
+        notifyRole('admin', { consultation_code: consultation_code, patient_name: arr[idx].patient_name, dispensed });
+        try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'pharmacy-dispense', consultation: arr[idx] }]) }); } catch (e) { }
         return { data: arr[idx], error: null };
     }
 
@@ -203,6 +256,12 @@ async function pharmacyUpdate({ consultation_code, dispensed }) {
         .eq('consultation_code', consultation_code)
         .select()
         .single();
+
+    if (!error && data) {
+        notifyRole('cashier', { consultation_code: consultation_code, patient_name: data.patient_name, dispensed });
+        notifyRole('admin', { consultation_code: consultation_code, patient_name: data.patient_name, dispensed });
+        try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'pharmacy-dispense', consultation: data }]) }); } catch (e) { }
+    }
 
     return { data, error };
 }
