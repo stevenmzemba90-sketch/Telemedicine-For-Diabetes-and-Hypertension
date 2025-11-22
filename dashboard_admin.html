@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <main class="page">
+        <div class="container">
+            <h1>Admin Dashboard</h1>
+            <p id="welcome">Loading...</p>
+            <button id="signout" class="btn signin">Sign out</button>
+
+            <section>
+                <h2>All Consultations</h2>
+                <div id="admin-list">Loading...</div>
+            </section>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        (async function () {
+            const sess = localStorage.getItem('session');
+            if (!sess) { window.location.href = './index.html'; }
+            const s = sess ? JSON.parse(sess) : null;
+            document.getElementById('welcome').textContent = s ? `Welcome, ${s.name || s.email} (${s.role})` : 'Not signed in';
+            document.getElementById('signout').addEventListener('click', () => { localStorage.removeItem('session'); window.location.href = './index.html'; });
+
+            async function load() {
+                const res = await fetchAllConsultations();
+                const out = document.getElementById('admin-list');
+                if (res.error) return out.textContent = 'Error loading consultations';
+                const items = res.data || [];
+                if (!items.length) return out.textContent = 'No consultations yet.';
+                out.innerHTML = '<pre style="white-space:pre-wrap">' + JSON.stringify(items, null, 2) + '</pre>';
+            }
+
+            load();
+            setInterval(load, 20000);
+        })();
+    </script>
+</body>
+
+</html>

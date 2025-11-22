@@ -1,0 +1,12 @@
+{
+    "name": "telemedicine-offline-backend",
+    "version": "1.0.0",
+    "description": "Local queue server for Telemedicine APP",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2"
+    }
+}

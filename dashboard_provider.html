@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Provider Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+        .consultation {
+            background: #f7f7f7;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <div class="container">
+            <h1>Healthcare Provider Dashboard</h1>
+            <p id="welcome">Loading...</p>
+            <button id="signout" class="btn signin">Sign out</button>
+
+            <section>
+                <h2>Today's Consultations (from Cashier)</h2>
+                <div id="provider-list">Loading...</div>
+            </section>
+
+            <section style="margin-top:12px">
+                <h2>Today's Attendance</h2>
+                <div id="attendance-list">Loading...</div>
+            </section>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        (async function () {
+            const sess = localStorage.getItem('session');
+            if (!sess) { window.location.href = './index.html'; }
+            const s = sess ? JSON.parse(sess) : null;
+            document.getElementById('welcome').textContent = s ? `Welcome, ${s.name || s.email} (${s.role})` : 'Not signed in';
+            document.getElementById('signout').addEventListener('click', () => { localStorage.removeItem('session'); window.location.href = './index.html'; });
+
+            async function load() {
+                const res = await fetchAllConsultations();
+                const out = document.getElementById('provider-list');
+                const attOut = document.getElementById('attendance-list');
+                if (res.error) { out.textContent = 'Error loading consultations'; return; }
+                const all = (res.data || []);
+                // filter consultations registered today
+                const items = all.filter(r => {
+                    const d = parseISO(r.cashier_registered_at);
+                    return isSameDay(d, new Date());
+                });
+
+                if (!items.length) { out.textContent = 'No incoming consultations for today.'; attOut.textContent = 'No attendance yet.'; return; }
+                out.innerHTML = '';
+                items.forEach(it => {
+                    const div = document.createElement('div'); div.className = 'consultation';
+                    div.innerHTML = `
+                        <strong>${it.patient_name}</strong> — ${it.consultation_code}<br>
+                        Age: ${it.age || '-'} Sex: ${it.sex || '-'}<br>
+                        <small>Registered at: ${it.cashier_registered_at || ''}</small>
+                        <div style="margin-top:8px">
+                            <textarea placeholder="Provider notes" rows="2" style="width:100%" data-code="${it.consultation_code}"></textarea>
+                            <label><input type="checkbox" data-code-refill="${it.consultation_code}" ${it.medication_refill ? 'checked' : ''} /> Medication refill</label>
+                            <button data-save="${it.consultation_code}" class="btn signup">Save Update</button>
+                        </div>
+                    `;
+                    out.appendChild(div);
+                });
+
+                // attendance list
+                attOut.innerHTML = '';
+                items.forEach(it => {
+                    const el = document.createElement('div'); el.className = 'consultation';
+                    el.textContent = `${it.patient_name} — ${it.consultation_code} — fee: ${Number(it.fee || 0).toLocaleString()} MWK`;
+                    attOut.appendChild(el);
+                });
+
+                // attach handlers
+                out.querySelectorAll('button[data-save]').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const code = btn.getAttribute('data-save');
+                        const ta = out.querySelector(`textarea[data-code="${code}"]`);
+                        const cb = out.querySelector(`input[data-code-refill="${code}"]`);
+                        const notes = ta.value.trim();
+                        const refill = !!(cb && cb.checked);
+                        const r = await providerUpdate({ consultation_code: code, notes, medication_refill: refill });
+                        if (r.error) return alert('Error: ' + (r.error.message || r.error));
+                        alert('Provider update saved');
+                        load();
+                    });
+                });
+            }
+
+            load();
+            // refresh periodically
+            setInterval(load, 15000);
+        })();
+    </script>
+
+</body>
+
+</html>

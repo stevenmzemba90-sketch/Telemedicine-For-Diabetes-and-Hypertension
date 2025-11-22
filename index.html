@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Telemedicine For Diabetes and Hypertension Management</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <main class="page">
+        <div class="container" role="main">
+            <h1 class="title">Telemedicine For Diabetes and Hypertension Management</h1>
+
+            <div class="cross" aria-hidden="true">+</div>
+
+            <p class="lead">Comprehensive patient management system for chronic disease care with automated workflow
+                from registration to treatment.</p>
+
+            <div class="buttons">
+                <a id="show-signin" class="btn signin" href="#">Sign in</a>
+                <a id="show-signup" class="btn signup" href="#">Sign up</a>
+            </div>
+
+            <div id="auth-forms" class="auth-forms">
+                <form id="signin-form" class="auth" style="display:none">
+                    <h3>Sign in</h3>
+                    <input id="si-email" type="email" placeholder="Email" required />
+                    <input id="si-password" type="password" placeholder="Password" required />
+                    <button class="btn signin" type="submit">Sign in</button>
+                </form>
+
+                <form id="signup-form" class="auth" style="display:none">
+                    <h3>Sign up</h3>
+                    <input id="su-name" placeholder="Full name" required />
+                    <input id="su-email" type="email" placeholder="Email" required />
+                    <input id="su-password" type="password" placeholder="Password" required />
+                    <label for="su-role">Role</label>
+                    <select id="su-role">
+                        <option value="cashier">Cashier</option>
+                        <option value="provider">Healthcare Provider</option>
+                        <option value="pharmacist">Pharmacist</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <button class="btn signup" type="submit">Create account</button>
+                </form>
+            </div>
+
+            <div id="user-header" class="user-header" style="display:none">
+                <span id="welcome"></span>
+                <button id="signout" class="btn signin">Sign out</button>
+            </div>
+
+            <hr class="sep" />
+
+            <section class="log" style="display:none">
+                <h2>Patient Registration Log</h2>
+                <p>Cashier registers new patient and generates consultation codes for daily use.</p>
+            </section>
+
+            <section class="log" style="display:none">
+                <h2>Healthcare Provider Update</h2>
+                <p>Healthcare provider updates patient with daily checks and medication refill.</p>
+            </section>
+
+            <section class="log" style="display:none">
+                <h2>Pharmacy Management Log</h2>
+                <p>Pharmacist tracks and dispenses prescribed medication to patients.</p>
+            </section>
+
+            <section class="log" style="display:none">
+                <h2>Admin Dashboard Log</h2>
+                <p>Complete oversight of patient journey and monthly visit scheduling.</p>
+            </section>
+
+            <footer class="site-footer">2025 © Steven Mzemba - Telemedicine For Diabetes and Hypertension Management
+            </footer>
+        </div>
+    </main>
+
+    <!-- Interaction forms for Supabase workflow (hidden on homepage) -->
+    <div class="container forms" aria-hidden="true" style="display:none">
+        <h3>Cashier — Register Patient</h3>
+        <form id="cashier-form">
+            <input id="cashier-patient-name" placeholder="Patient full name" required />
+            <input id="cashier-age" placeholder="Age" type="number" min="0" />
+            <input id="cashier-fee" placeholder="Consultation fee (USD)" type="number" min="0" step="0.01" />
+            <select id="cashier-sex">
+                <option value="">Sex</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+            </select>
+            <input id="cashier-village" placeholder="Village" />
+            <input id="cashier-contact-1" placeholder="Primary contact" />
+            <input id="cashier-contact-2" placeholder="Secondary contact (optional)" />
+            <label><input id="cashier-hiv" type="checkbox" /> HIV status (positive)</label>
+            <input id="cashier-patient-phone" placeholder="Phone (optional)" style="display:none" />
+            <button type="submit" class="btn signin">Register &amp; Generate Consultation</button>
+        </form>
+        <div id="cashier-stats" style="margin-top:10px; color:#fff; text-align:left;">
+            <strong>Total consultation fees collected:</strong>
+            <span id="fee-total">$0.00</span>
+        </div>
+
+        <h3>Provider — Daily Update</h3>
+        <form id="provider-form">
+            <input id="provider-consultation-code" placeholder="Consultation code" required />
+            <textarea id="provider-notes" placeholder="Daily notes / checks"></textarea>
+            <label><input type="checkbox" id="provider-med-refill" /> Medication refill received</label>
+            <button type="submit" class="btn signup">Submit Provider Update</button>
+        </form>
+
+        <h3>Pharmacist — Dispense</h3>
+        <form id="pharmacy-form">
+            <input id="pharm-consultation-code" placeholder="Consultation code" required />
+            <label><input type="checkbox" id="pharm-dispensed" /> Medication dispensed</label>
+            <button type="submit" class="btn signin">Record Dispense</button>
+        </form>
+
+        <h3>Admin — Dashboard</h3>
+        <div class="admin-actions">
+            <button id="admin-refresh" class="btn signup">Refresh All Consultations</button>
+            <pre id="admin-output"
+                style="text-align:left; margin-top:12px; background:#072a66; padding:10px; border-radius:6px; color:#fff"></pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+
+</body>
+
+</html>

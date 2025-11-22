@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cashier Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+        .consultation {
+            background: #f7f7f7;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <div class="container">
+            <h1>Cashier Dashboard</h1>
+            <p id="welcome">Loading...</p>
+            <button id="signout" class="btn signin">Sign out</button>
+
+            <section>
+                <h2>Register New Patient</h2>
+                <form id="cashier-local-form">
+                    <input id="c-name" placeholder="Patient full name" required />
+                    <input id="c-age" placeholder="Age" type="number" min="0" />
+                    <select id="c-sex">
+                        <option value="">Sex</option>
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                    </select>
+                    <input id="c-village" placeholder="Village" />
+                    <input id="c-contact1" placeholder="Primary contact" />
+                    <input id="c-fee" placeholder="Consultation fee (MWK)" type="number" min="0" step="1" />
+                    <button class="btn signin" type="submit">Register & Generate Consultation</button>
+                </form>
+
+                <div style="margin-top:12px;">
+                    <strong>Totals (MWK):</strong>
+                    <div>Today: <span id="tot-day">0</span> (count <span id="cnt-day">0</span>)</div>
+                    <div>This week: <span id="tot-week">0</span> (count <span id="cnt-week">0</span>)</div>
+                    <div>This month: <span id="tot-month">0</span> (count <span id="cnt-month">0</span>)</div>
+                </div>
+            </section>
+
+            <section>
+                <h2>Existing Patients — Give Today's Attendance</h2>
+                <div id="patient-list">Loading...</div>
+            </section>
+
+            <section style="margin-top:14px">
+                <h2>New Patients (today)</h2>
+                <div id="new-patients">Loading...</div>
+                <h2 style="margin-top:8px">Existing Patients</h2>
+                <div id="existing-patients">Loading...</div>
+            </section>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        (function () {
+            const sess = localStorage.getItem('session');
+            if (!sess) { window.location.href = './index.html'; }
+            const s = sess ? JSON.parse(sess) : null;
+            document.getElementById('welcome').textContent = s ? `Welcome, ${s.name || s.email} (${s.role})` : 'Not signed in';
+            document.getElementById('signout').addEventListener('click', () => { localStorage.removeItem('session'); window.location.href = './index.html'; });
+
+            const form = document.getElementById('cashier-local-form');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('c-name').value.trim();
+                const age = document.getElementById('c-age').value.trim();
+                const sex = document.getElementById('c-sex').value;
+                const village = document.getElementById('c-village').value.trim();
+                const contact1 = document.getElementById('c-contact1').value.trim();
+                const fee = document.getElementById('c-fee').value.trim() || 0;
+                const res = await registerPatient({ name, age, sex, village, contact1, fee, created_by: s.name || s.email });
+                if (res.error) return alert('Error: ' + (res.error.message || res.error));
+                alert('Registered. Consultation code: ' + res.data.consultation_code);
+                form.reset();
+                loadPatients();
+            });
+
+            async function loadPatients() {
+                const res = await fetchAllConsultations();
+                const out = document.getElementById('patient-list');
+                if (res.error) return out.textContent = 'Error loading patients';
+                const list = res.data || [];
+
+                // compute totals
+                const totals = computeTotals(list);
+                document.getElementById('tot-day').textContent = totals.day.total.toLocaleString();
+                document.getElementById('cnt-day').textContent = totals.day.count;
+                document.getElementById('tot-week').textContent = totals.week.total.toLocaleString();
+                document.getElementById('cnt-week').textContent = totals.week.count;
+                document.getElementById('tot-month').textContent = totals.month.total.toLocaleString();
+                document.getElementById('cnt-month').textContent = totals.month.count;
+
+                // list unique patients
+                const grouped = groupPatients(list);
+                const names = Object.keys(grouped).sort();
+                if (!names.length) return out.textContent = 'No patients yet.';
+                out.innerHTML = '';
+                names.forEach(n => {
+                    const it = grouped[n].slice(-1)[0];
+                    const div = document.createElement('div'); div.className = 'consultation';
+                    div.innerHTML = `<strong>${n}</strong> — last code: ${it.consultation_code || '-'}<br>
+                        <button class="btn signup" data-patient="${n}">Give today's attendance</button>`;
+                    out.appendChild(div);
+                });
+                out.querySelectorAll('button[data-patient]').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const name = btn.getAttribute('data-patient');
+                        const src = grouped[name].slice(-1)[0] || {};
+                        const fee = prompt('Enter consultation fee (MWK) for today', src.fee || '0');
+                        const res = await registerPatient({ name: src.patient_name || name, age: src.age, sex: src.sex, village: src.village, contact1: src.contact_primary, fee: fee || 0, created_by: s.name || s.email });
+                        if (res.error) return alert('Error: ' + (res.error.message || res.error));
+                        alert('Attendance recorded. Consultation code: ' + res.data.consultation_code);
+                        loadPatients();
+                    });
+                });
+
+                // new vs existing
+                const newOut = document.getElementById('new-patients');
+                const existOut = document.getElementById('existing-patients');
+                newOut.innerHTML = '';
+                existOut.innerHTML = '';
+                const now = new Date();
+                names.forEach(n => {
+                    const records = grouped[n].slice().sort((a, b) => new Date(a.cashier_registered_at) - new Date(b.cashier_registered_at));
+                    const first = records[0];
+                    const isNew = isSameDay(new Date(first.cashier_registered_at), now);
+                    const el = document.createElement('div'); el.className = 'consultation';
+                    el.textContent = `${n} — last code ${records.slice(-1)[0].consultation_code || '-'} `;
+                    if (isNew) newOut.appendChild(el); else existOut.appendChild(el);
+                });
+            }
+
+            loadPatients();
+            setInterval(loadPatients, 15000);
+        })();
+    </script>
+</body>
+
+</html>

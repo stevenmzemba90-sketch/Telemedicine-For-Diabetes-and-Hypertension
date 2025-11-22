@@ -1,0 +1,135 @@
+/* Styles for Telemedicine For Diabetes and Hypertension Management */
+:root {
+    --blue: #0b69ff;
+    --blue-light: #cfe3ff;
+    --bg: #f2f6fb;
+}
+
+* {
+    box-sizing: border-box
+}
+
+body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background: var(--bg);
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center
+}
+
+.container {
+    background: var(--blue);
+    color: #fff;
+    padding: 36px;
+    border-radius: 12px;
+    width: min(760px, 92%);
+    box-shadow: 0 8px 30px rgba(11, 105, 255, 0.12);
+    text-align: center
+}
+
+.title {
+    font-size: 22px;
+    margin: 0 0 18px;
+    line-height: 1.15
+}
+
+.cross {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 64px;
+    font-weight: 800;
+    color: var(--blue);
+    background: #eaf3ff;
+    border-radius: 12px
+}
+
+.lead {
+    margin: 0 0 22px;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 15px
+}
+
+.buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600
+}
+
+.signin {
+    background: #ffffff;
+    color: var(--blue)
+}
+
+.signup {
+    background: transparent;
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.9)
+}
+
+.btn:hover {
+    opacity: 0.95
+}
+
+@media (max-width:480px) {
+    .container {
+        padding: 24px
+    }
+
+    .cross {
+        width: 72px;
+        height: 72px;
+        font-size: 48px
+    }
+
+    .title {
+        font-size: 18px
+    }
+}
+
+/* Logs and footer */
+.sep {
+    border: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.15);
+    margin: 22px 0
+}
+
+.log {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 14px;
+    border-radius: 8px;
+    margin: 12px 0;
+    text-align: left
+}
+
+.log h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    color: #fff
+}
+
+.log p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 14px
+}
+
+.site-footer {
+    margin-top: 18px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85)
+}
