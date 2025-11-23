@@ -119,6 +119,45 @@ async function notifyRole(role, payload) {
     } catch (err) {
         console.warn('Notify backend failed', err);
     }
+
+    // Also persist notification locally so dashboards can read when offline
+    try {
+        const notes = _lsGet('notifications');
+        notes.push({ role, payload, ts: new Date().toISOString() });
+        _lsSet('notifications', notes);
+        // broadcast a storage signal for other windows
+        localStorage.setItem('notifications-updated', new Date().toISOString());
+    } catch (e) {
+        console.warn('Local notify store failed', e);
+    }
+}
+
+// Notification accessors
+function notificationsGet() { return _lsGet('notifications'); }
+function notificationsClear() { _lsSet('notifications', []); }
+
+// Update patient demographics / basic fields
+async function updatePatient(consultation_code, fields = {}) {
+    if (useLocalFallback || !supabaseClient) {
+        const arr = _lsGet('consultations');
+        const idx = arr.findIndex(r => r.consultation_code === consultation_code);
+        if (idx === -1) return { error: 'Not found' };
+        Object.assign(arr[idx], fields);
+        arr[idx].patient_updated_at = new Date().toISOString();
+        _lsSet('consultations', arr);
+        localStorage.setItem('consultation-updated', new Date().toISOString());
+        notifyRole('admin', { type: 'patient-updated', consultation_code, fields });
+        return { data: arr[idx], error: null };
+    }
+
+    try {
+        const { data, error } = await supabaseClient.from('consultations').update(fields).eq('consultation_code', consultation_code).select().single();
+        if (!error && data) {
+            localStorage.setItem('consultation-updated', new Date().toISOString());
+            notifyRole('admin', { type: 'patient-updated', consultation_code, fields });
+        }
+        return { data, error };
+    } catch (err) { return { data: null, error: err }; }
 }
 
 async function sendSMS(phone, message) {

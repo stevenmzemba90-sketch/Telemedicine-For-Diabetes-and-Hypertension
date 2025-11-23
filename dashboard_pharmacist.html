@@ -20,6 +20,10 @@
             </div>
 
             <section>
+                <h2>Notifications</h2>
+                <div id="pharm-notifs">Loading notifications...</div>
+            </section>
+            <section>
                 <h2>Pending Dispenses</h2>
                 <div id="pharm-list">Loading...</div>
             </section>
@@ -87,6 +91,23 @@
                     });
                 });
             }
+
+            // notifications render
+            function renderNotifs() {
+                const container = document.getElementById('pharm-notifs');
+                const notes = notificationsGet() || [];
+                if (!notes.length) { container.textContent = 'No notifications.'; return; }
+                container.innerHTML = '';
+                notes.slice().reverse().forEach(n => {
+                    const d = document.createElement('div'); d.className = 'consultation';
+                    d.innerHTML = `<strong>${n.role.toUpperCase()}</strong> — ${n.ts}<br><small>${JSON.stringify(n.payload)}</small>`;
+                    container.appendChild(d);
+                });
+            }
+
+            // initial notifs and watch for updates
+            renderNotifs();
+            window.addEventListener('storage', (e) => { if (e.key === 'notifications-updated' || e.key === 'consultation-updated') { renderNotifs(); load(); } });
 
             document.getElementById('a11y-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('accessible'); });
             document.getElementById('contrast-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('high-contrast'); });

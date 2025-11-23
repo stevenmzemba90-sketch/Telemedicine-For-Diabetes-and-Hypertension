@@ -156,9 +156,22 @@
                 names.forEach(n => {
                     const records = grouped[n].slice().sort((a, b) => new Date(a.cashier_registered_at) - new Date(b.cashier_registered_at));
                     const first = records[0];
+                    const lastRec = records.slice(-1)[0] || {};
                     const isNew = isSameDay(new Date(first.cashier_registered_at), now);
                     const el = document.createElement('div'); el.className = 'consultation';
-                    el.textContent = `${n} — last code ${records.slice(-1)[0].consultation_code || '-'} `;
+                    el.innerHTML = `${n} — last code ${lastRec.consultation_code || '-'} <button class="btn signin" data-open-file="${lastRec.consultation_code || ''}">Open File</button>`;
+                    // attach open handler
+                    el.querySelector('button[data-open-file]')?.addEventListener('click', async (ev) => {
+                        const code = ev.currentTarget.getAttribute('data-open-file');
+                        if (!code) return alert('No consultation code available');
+                        const res = await fetchAllConsultations();
+                        if (res.error) return alert('Error loading file');
+                        const rec = (res.data || []).find(r => r.consultation_code === code);
+                        if (!rec) return alert('Record not found');
+                        const reader = document.getElementById('cashier-reader');
+                        document.getElementById('reader-content').innerHTML = `<h2>${rec.patient_name} — ${rec.consultation_code}</h2><p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p><hr><h3>Provider notes</h3><div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div><hr><h3>Pharmacy</h3><div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>`;
+                        document.getElementById('cashier-reader').style.display = '';
+                    });
                     if (isNew) newOut.appendChild(el); else existOut.appendChild(el);
                 });
             }

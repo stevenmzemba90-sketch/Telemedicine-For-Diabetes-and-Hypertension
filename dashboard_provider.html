@@ -127,8 +127,55 @@
                 if (res.error) return alert('Error loading file');
                 const rec = (res.data || []).find(r => r.consultation_code === code);
                 if (!rec) return alert('Record not found');
-                document.getElementById('prov-reader-content').innerHTML = `<h2>${rec.patient_name} — ${rec.consultation_code}</h2><p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p><hr><h3>Provider notes</h3><div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div><hr><h3>Pharmacy</h3><div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>`;
+                document.getElementById('prov-reader-content').innerHTML = `
+                    <div class="patient-summary">
+                        <h2>${rec.patient_name} — ${rec.consultation_code}</h2>
+                        <p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p>
+                        <div style="margin-top:8px"><button id="prov-edit-file" class="btn signup" data-code="${rec.consultation_code}">Edit Patient File</button></div>
+                    </div>
+                    <hr>
+                    <h3>Provider notes</h3>
+                    <div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div>
+                    <hr>
+                    <h3>Pharmacy</h3>
+                    <div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>
+                    <div id="prov-edit-area" style="display:none; margin-top:10px"></div>
+                `;
                 document.getElementById('provider-reader').style.display = '';
+
+                // attach edit handler
+                document.getElementById('prov-edit-file').addEventListener('click', () => {
+                    const code = document.getElementById('prov-edit-file').getAttribute('data-code');
+                    const area = document.getElementById('prov-edit-area');
+                    if (area.style.display === '') { area.style.display = 'none'; return; }
+                    area.style.display = '';
+                    area.innerHTML = `
+                        <h4>Edit Patient</h4>
+                        <label>Name:<br><input id="prov-edit-name" value="${rec.patient_name || ''}" style="width:100%" /></label>
+                        <label>Age: <input id="prov-edit-age" value="${rec.age || ''}" type="number" /></label>
+                        <label>Sex: <select id="prov-edit-sex"><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select></label>
+                        <label>Village:<br><input id="prov-edit-village" value="${rec.village || ''}" style="width:100%" /></label>
+                        <label>Primary contact:<br><input id="prov-edit-contact1" value="${rec.contact_primary || ''}" style="width:100%" /></label>
+                        <div style="margin-top:8px"><button id="prov-save-patient" class="btn signup">Save Patient File</button></div>
+                    `;
+                    // set sex value
+                    document.getElementById('prov-edit-sex').value = rec.sex || '';
+                    document.getElementById('prov-save-patient').addEventListener('click', async () => {
+                        const fields = {
+                            patient_name: document.getElementById('prov-edit-name').value.trim(),
+                            age: document.getElementById('prov-edit-age').value.trim() || null,
+                            sex: document.getElementById('prov-edit-sex').value || null,
+                            village: document.getElementById('prov-edit-village').value.trim() || null,
+                            contact_primary: document.getElementById('prov-edit-contact1').value.trim() || null
+                        };
+                        const r = await updatePatient(code, fields);
+                        if (r.error) return alert('Failed to save patient file: ' + (r.error.message || r.error));
+                        alert('Patient file saved');
+                        area.style.display = 'none';
+                        // reload content
+                        document.getElementById('prov-reader-content').querySelector('.patient-summary h2').textContent = `${fields.patient_name} — ${code}`;
+                    });
+                });
             }));
 
             load();
