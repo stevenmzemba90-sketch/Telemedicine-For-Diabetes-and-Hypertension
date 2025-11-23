@@ -214,3 +214,42 @@ body {
     right: 22px;
     top: 22px
 }
+
+/* Enhanced accessibility styles */
+.accessible .btn {
+    padding: 14px 24px;
+    font-size: 18px;
+}
+
+.accessible input,
+.accessible select,
+.accessible textarea {
+    font-size: 18px;
+    padding: 8px;
+}
+
+.reader[aria-hidden="false"] {
+    outline: 4px solid #0b69ff33;
+}
+
+.btn:focus,
+button:focus,
+a:focus {
+    outline: 3px solid #ffd54f;
+    outline-offset: 3px;
+}
+
+.high-contrast .reader {
+    background: #000;
+    color: #fff;
+}
+
+.high-contrast .reader .content {
+    color: #fff;
+}
+
+/* Larger readable defaults for the reader content */
+.reader .content {
+    font-size: 22px;
+    line-height: 1.9;
+}

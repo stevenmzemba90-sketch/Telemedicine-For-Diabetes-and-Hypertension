@@ -110,12 +110,25 @@
                 document.querySelector('.container').classList.toggle('high-contrast');
             });
 
-            // create provider reader panel if not present
+            // create provider reader panel if not present (accessible dialog)
             if (!document.getElementById('provider-reader')) {
-                const reader = document.createElement('div'); reader.id = 'provider-reader'; reader.className = 'reader'; reader.style.display = 'none';
-                reader.innerHTML = `<button class="close btn signin" id="close-provider-reader">Close</button><div class="controls"><label>Font size: <input id="prov-reader-font-size" type="range" min="14" max="30" value="20"/></label><label>Font: <select id="prov-reader-font"><option value="Arial, sans-serif">Default</option><option value="Georgia, serif">Serif</option><option value="'Open Sans', Arial, sans-serif">Open Sans</option></select></div><div class="content" id="prov-reader-content"></div>`;
+                const reader = document.createElement('div');
+                reader.id = 'provider-reader';
+                reader.className = 'reader';
+                reader.style.display = 'none';
+                reader.setAttribute('role', 'dialog');
+                reader.setAttribute('aria-modal', 'true');
+                reader.setAttribute('aria-hidden', 'true');
+                reader.setAttribute('tabindex', '-1');
+                reader.innerHTML = `<button class="close btn signin" id="close-provider-reader" aria-label="Close patient reader">Close</button><div class="controls"><label>Font size: <input id="prov-reader-font-size" type="range" min="14" max="30" value="20"/></label><label>Font: <select id="prov-reader-font"><option value="Arial, sans-serif">Default</option><option value="Georgia, serif">Serif</option><option value="'Open Sans', Arial, sans-serif">Open Sans</option></select></div><div class="content" id="prov-reader-content"></div>`;
                 document.body.appendChild(reader);
-                document.getElementById('close-provider-reader').addEventListener('click', () => { document.getElementById('provider-reader').style.display = 'none'; });
+                document.getElementById('close-provider-reader').addEventListener('click', () => {
+                    const pr = document.getElementById('provider-reader');
+                    pr.setAttribute('aria-hidden', 'true');
+                    pr.style.display = 'none';
+                    // try to restore focus to the main container
+                    document.querySelector('.container')?.focus();
+                });
                 document.getElementById('prov-reader-font-size').addEventListener('input', (e) => { document.querySelector('#prov-reader-content').style.fontSize = e.target.value + 'px'; });
                 document.getElementById('prov-reader-font').addEventListener('change', (e) => { document.querySelector('#prov-reader-content').style.fontFamily = e.target.value; });
             }
@@ -141,7 +154,10 @@
                     <div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>
                     <div id="prov-edit-area" style="display:none; margin-top:10px"></div>
                 `;
-                document.getElementById('provider-reader').style.display = '';
+                const pr = document.getElementById('provider-reader');
+                pr.style.display = '';
+                pr.setAttribute('aria-hidden', 'false');
+                pr.focus();
 
                 // attach edit handler
                 document.getElementById('prov-edit-file').addEventListener('click', () => {
