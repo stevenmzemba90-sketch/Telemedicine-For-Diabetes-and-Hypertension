@@ -387,7 +387,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (adminOutput) {
+            // Preserve human-readable JSON output and keep it visible
             adminOutput.textContent = JSON.stringify(items, null, 2);
+            adminOutput.style.display = '';
+            adminOutput.style.whiteSpace = 'pre';
+            adminOutput.style.fontFamily = 'monospace, monospace';
+            return;
         }
     }
 
