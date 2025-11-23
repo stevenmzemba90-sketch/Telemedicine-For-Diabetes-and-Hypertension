@@ -150,30 +150,42 @@
                     if (area.style.display === '') { area.style.display = 'none'; return; }
                     area.style.display = '';
                     area.innerHTML = `
-                        <h4>Edit Patient</h4>
+                        <h4>Edit Patient & Provider Update</h4>
                         <label>Name:<br><input id="prov-edit-name" value="${rec.patient_name || ''}" style="width:100%" /></label>
                         <label>Age: <input id="prov-edit-age" value="${rec.age || ''}" type="number" /></label>
                         <label>Sex: <select id="prov-edit-sex"><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select></label>
                         <label>Village:<br><input id="prov-edit-village" value="${rec.village || ''}" style="width:100%" /></label>
                         <label>Primary contact:<br><input id="prov-edit-contact1" value="${rec.contact_primary || ''}" style="width:100%" /></label>
-                        <div style="margin-top:8px"><button id="prov-save-patient" class="btn signup">Save Patient File</button></div>
+                        <hr>
+                        <label>Provider notes:<br><textarea id="prov-edit-notes" rows="4" style="width:100%">${rec.provider_notes || ''}</textarea></label>
+                        <label><input type="checkbox" id="prov-edit-refill" ${rec.medication_refill ? 'checked' : ''} /> Medication refill required</label>
+                        <div style="margin-top:8px"><button id="prov-save-patient" class="btn signup">Save Patient & Provider Update</button></div>
                     `;
                     // set sex value
                     document.getElementById('prov-edit-sex').value = rec.sex || '';
                     document.getElementById('prov-save-patient').addEventListener('click', async () => {
-                        const fields = {
+                        const patientFields = {
                             patient_name: document.getElementById('prov-edit-name').value.trim(),
                             age: document.getElementById('prov-edit-age').value.trim() || null,
                             sex: document.getElementById('prov-edit-sex').value || null,
                             village: document.getElementById('prov-edit-village').value.trim() || null,
                             contact_primary: document.getElementById('prov-edit-contact1').value.trim() || null
                         };
-                        const r = await updatePatient(code, fields);
-                        if (r.error) return alert('Failed to save patient file: ' + (r.error.message || r.error));
-                        alert('Patient file saved');
+                        const notes = document.getElementById('prov-edit-notes').value.trim();
+                        const refill = !!document.getElementById('prov-edit-refill').checked;
+
+                        // update patient demographics first
+                        const up = await updatePatient(code, patientFields);
+                        if (up.error) return alert('Failed to save patient demographics: ' + (up.error.message || up.error));
+
+                        // then send provider update which will notify pharmacist when refill is requested
+                        const pu = await providerUpdate({ consultation_code: code, notes, medication_refill: refill });
+                        if (pu.error) return alert('Failed to save provider update: ' + (pu.error.message || pu.error));
+
+                        alert('Patient file and provider update saved; pharmacist notified if refill requested.');
                         area.style.display = 'none';
-                        // reload content
-                        document.getElementById('prov-reader-content').querySelector('.patient-summary h2').textContent = `${fields.patient_name} — ${code}`;
+                        // reload content headline
+                        document.getElementById('prov-reader-content').querySelector('.patient-summary h2').textContent = `${patientFields.patient_name} — ${code}`;
                     });
                 });
             }));
