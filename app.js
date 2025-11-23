@@ -12,9 +12,16 @@ const useLocalFallback = SUPABASE_URL === DEFAULT_SUPABASE_URL || SUPABASE_ANON_
 
 let supabaseClient = null;
 if (!useLocalFallback) {
-    // Initialize supabase client (guarded)
+    // Initialize supabase client (guarded) — support multiple CDN patterns
     try {
-        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        if (typeof createClient === 'function') {
+            supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } else if (typeof supabase !== 'undefined' && supabase && typeof supabase.createClient === 'function') {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } else {
+            console.warn('Supabase client factory not found on the page.');
+            supabaseClient = null;
+        }
     } catch (err) {
         console.error('Supabase init error:', err);
         supabaseClient = null;
@@ -427,7 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial admin load (if admin-list exists render cards)
-    if (document.getElementById('admin-list')) {
+    // Allow pages to provide their own admin renderer by setting `window.ADMIN_CUSTOM_RENDERER = true`.
+    if (document.getElementById('admin-list') && !window.ADMIN_CUSTOM_RENDERER) {
         (async () => { const r = await fetchAllConsultations(); if (!r.error) await renderAdminItems(r.data || []); })();
     }
 
