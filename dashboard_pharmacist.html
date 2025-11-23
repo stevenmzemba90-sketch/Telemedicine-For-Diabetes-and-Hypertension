@@ -43,19 +43,49 @@
                 if (!items.length) return out.textContent = 'No pending dispenses.';
                 out.innerHTML = '';
                 items.forEach(it => {
-                    const div = document.createElement('div'); div.className = 'consultation';
-                    div.innerHTML = `<strong>${it.patient_name}</strong> — ${it.consultation_code}<br>
-                        <small>Refill requested: ${it.provider_notes || ''}</small><br>
-                        <button class="btn signin" data-code="${it.consultation_code}">Mark Dispensed</button>`;
+                    const div = document.createElement('div'); div.className = 'card';
+                    const h = document.createElement('h3'); h.textContent = `${it.patient_name} — ${it.consultation_code}`;
+                    const notes = document.createElement('p'); notes.textContent = `Provider notes: ${it.provider_notes || '-'} `;
+                    notes.style.fontSize = '16px'; notes.style.lineHeight = '1.6';
+                    const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `Registered: ${it.cashier_registered_at || '-'} • Fee: ${Number(it.fee || 0).toLocaleString()}`;
+                    const btnDisp = document.createElement('button'); btnDisp.className = 'btn signin'; btnDisp.textContent = 'Mark Dispensed'; btnDisp.dataset.code = it.consultation_code;
+                    const btnEdit = document.createElement('button'); btnEdit.className = 'btn signup'; btnEdit.textContent = 'Edit & Refill'; btnEdit.dataset.code = it.consultation_code;
+
+                    // inline edit area (hidden by default)
+                    const editArea = document.createElement('div'); editArea.style.marginTop = '8px'; editArea.style.display = 'none';
+                    editArea.innerHTML = `
+                        <label>Medication details:<br><textarea rows="3" data-med="${it.consultation_code}" style="width:100%">${(it.medication_details || '')}</textarea></label>
+                        <label>Refill quantity: <input type="number" min="0" data-refill="${it.consultation_code}" value="${it.refill_quantity || ''}" /></label>
+                        <label>Pharmacy notes:<br><textarea rows="2" data-notes="${it.consultation_code}" style="width:100%">${(it.pharmacy_notes || '')}</textarea></label>
+                        <div style="margin-top:6px"><button class="btn signin" data-save-edit="${it.consultation_code}">Save & Upload</button></div>
+                    `;
+
+                    div.appendChild(h); div.appendChild(meta); div.appendChild(notes);
+                    const actions = document.createElement('div'); actions.style.marginTop = '8px'; actions.appendChild(btnDisp); actions.appendChild(btnEdit);
+                    div.appendChild(actions);
+                    div.appendChild(editArea);
                     out.appendChild(div);
+
+                    btnEdit.addEventListener('click', () => { editArea.style.display = editArea.style.display === 'none' ? '' : 'none'; });
+                    btnDisp.addEventListener('click', async () => {
+                        const code = btnDisp.getAttribute('data-code');
+                        const r = await pharmacyUpdate({ consultation_code: code, dispensed: true });
+                        if (r.error) return alert('Error: ' + (r.error.message || r.error));
+                        alert('Marked dispensed');
+                        load();
+                    });
+
+                    editArea.querySelector('button[data-save-edit]')?.addEventListener('click', async (ev) => {
+                        const code = ev.target.getAttribute('data-save-edit');
+                        const med = editArea.querySelector(`textarea[data-med="${code}"]`).value.trim();
+                        const qty = editArea.querySelector(`input[data-refill="${code}"]`).value.trim();
+                        const pnotes = editArea.querySelector(`textarea[data-notes="${code}"]`).value.trim();
+                        const res = await pharmacyEdit({ consultation_code: code, medication_details: med, refill_quantity: qty ? Number(qty) : null, notes: pnotes });
+                        if (res.error) return alert('Error: ' + (res.error.message || res.error));
+                        alert('Pharmacy file uploaded to admin & cashier');
+                        load();
+                    });
                 });
-                out.querySelectorAll('button[data-code]').forEach(b => b.addEventListener('click', async () => {
-                    const code = b.getAttribute('data-code');
-                    const r = await pharmacyUpdate({ consultation_code: code, dispensed: true });
-                    if (r.error) return alert('Error: ' + (r.error.message || r.error));
-                    alert('Marked dispensed');
-                    load();
-                }));
             }
 
             document.getElementById('a11y-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('accessible'); });
@@ -63,6 +93,8 @@
 
             load();
             setInterval(load, 15000);
+            // refresh on storage signal
+            window.addEventListener('storage', (e) => { if (e.key === 'consultation-updated') load(); });
         })();
     </script>
 </body>

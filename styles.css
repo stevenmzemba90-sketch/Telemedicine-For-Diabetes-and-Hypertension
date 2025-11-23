@@ -168,3 +168,49 @@ body {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.85)
 }
+
+/* Additional accessibility and inline reader styles */
+.accessible {
+    font-size: 18px;
+    line-height: 1.6
+}
+
+.high-contrast {
+    background: #000 !important;
+    color: #fff !important
+}
+
+/* Inline reader / panel used to show patient file in accessible layout */
+.reader {
+    position: fixed;
+    right: 18px;
+    top: 18px;
+    bottom: 18px;
+    left: 18px;
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 8px;
+    padding: 18px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+    overflow: auto;
+    z-index: 9999
+}
+
+.reader .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px
+}
+
+.reader .content {
+    font-size: 20px;
+    line-height: 1.7;
+    color: #111;
+    padding: 8px
+}
+
+.reader .close {
+    position: absolute;
+    right: 22px;
+    top: 22px
+}

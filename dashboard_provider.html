@@ -72,6 +72,7 @@
                             <textarea placeholder="Provider notes" rows="2" style="width:100%" data-code="${it.consultation_code}"></textarea>
                             <label><input type="checkbox" data-code-refill="${it.consultation_code}" ${it.medication_refill ? 'checked' : ''} /> Medication refill</label>
                             <button data-save="${it.consultation_code}" class="btn signup">Save Update</button>
+                            <button class="btn signin" data-open-file="${it.consultation_code}">Open Patient File</button>
                         </div>
                     `;
                     out.appendChild(div);
@@ -108,6 +109,27 @@
             document.getElementById('contrast-toggle').addEventListener('click', () => {
                 document.querySelector('.container').classList.toggle('high-contrast');
             });
+
+            // create provider reader panel if not present
+            if (!document.getElementById('provider-reader')) {
+                const reader = document.createElement('div'); reader.id = 'provider-reader'; reader.className = 'reader'; reader.style.display = 'none';
+                reader.innerHTML = `<button class="close btn signin" id="close-provider-reader">Close</button><div class="controls"><label>Font size: <input id="prov-reader-font-size" type="range" min="14" max="30" value="20"/></label><label>Font: <select id="prov-reader-font"><option value="Arial, sans-serif">Default</option><option value="Georgia, serif">Serif</option><option value="'Open Sans', Arial, sans-serif">Open Sans</option></select></div><div class="content" id="prov-reader-content"></div>`;
+                document.body.appendChild(reader);
+                document.getElementById('close-provider-reader').addEventListener('click', () => { document.getElementById('provider-reader').style.display = 'none'; });
+                document.getElementById('prov-reader-font-size').addEventListener('input', (e) => { document.querySelector('#prov-reader-content').style.fontSize = e.target.value + 'px'; });
+                document.getElementById('prov-reader-font').addEventListener('change', (e) => { document.querySelector('#prov-reader-content').style.fontFamily = e.target.value; });
+            }
+
+            // open patient file handler
+            document.querySelectorAll('button[data-open-file]').forEach(btn => btn.addEventListener('click', async (ev) => {
+                const code = btn.getAttribute('data-open-file');
+                const res = await fetchAllConsultations();
+                if (res.error) return alert('Error loading file');
+                const rec = (res.data || []).find(r => r.consultation_code === code);
+                if (!rec) return alert('Record not found');
+                document.getElementById('prov-reader-content').innerHTML = `<h2>${rec.patient_name} — ${rec.consultation_code}</h2><p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p><hr><h3>Provider notes</h3><div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div><hr><h3>Pharmacy</h3><div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>`;
+                document.getElementById('provider-reader').style.display = '';
+            }));
 
             load();
             // refresh periodically

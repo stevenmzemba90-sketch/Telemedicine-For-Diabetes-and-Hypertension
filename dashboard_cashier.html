@@ -110,9 +110,19 @@
                     const it = grouped[n].slice(-1)[0];
                     const div = document.createElement('div'); div.className = 'consultation';
                     div.innerHTML = `<strong>${n}</strong> — last code: ${it.consultation_code || '-'}<br>
-                        <button class="btn signup" data-patient="${n}">Give today's attendance</button>`;
+                        <button class="btn signup" data-patient="${n}">Give today's attendance</button>
+                        <button class="btn signin" data-open-file="${it.consultation_code}">Open Patient File</button>`;
                     out.appendChild(div);
                 });
+                // create reader panel if not present
+                if (!document.getElementById('cashier-reader')) {
+                    const reader = document.createElement('div'); reader.id = 'cashier-reader'; reader.className = 'reader'; reader.style.display = 'none';
+                    reader.innerHTML = `<button class="close btn signin" id="close-reader">Close</button><div class="controls"><label>Font size: <input id="reader-font-size" type="range" min="14" max="30" value="20"/></label><label>Font: <select id="reader-font"><option value="Arial, sans-serif">Default</option><option value="Georgia, serif">Serif</option><option value="'Open Sans', Arial, sans-serif">Open Sans</option></select></div><div class="content" id="reader-content"></div>`;
+                    document.body.appendChild(reader);
+                    document.getElementById('close-reader').addEventListener('click', () => { document.getElementById('cashier-reader').style.display = 'none'; });
+                    document.getElementById('reader-font-size').addEventListener('input', (e) => { document.querySelector('#reader-content').style.fontSize = e.target.value + 'px'; });
+                    document.getElementById('reader-font').addEventListener('change', (e) => { document.querySelector('#reader-content').style.fontFamily = e.target.value; });
+                }
                 out.querySelectorAll('button[data-patient]').forEach(btn => {
                     btn.addEventListener('click', async () => {
                         const name = btn.getAttribute('data-patient');
@@ -125,6 +135,18 @@
                     });
                 });
 
+                out.querySelectorAll('button[data-open-file]').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const code = btn.getAttribute('data-open-file');
+                        const res = await fetchAllConsultations();
+                        if (res.error) return alert('Error loading file');
+                        const rec = (res.data || []).find(r => r.consultation_code === code);
+                        if (!rec) return alert('Record not found');
+                        const reader = document.getElementById('cashier-reader');
+                        document.getElementById('reader-content').innerHTML = `<h2>${rec.patient_name} — ${rec.consultation_code}</h2><p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p><hr><h3>Provider notes</h3><div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div><hr><h3>Pharmacy</h3><div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>`;
+                        document.getElementById('cashier-reader').style.display = '';
+                    });
+                });
                 // new vs existing
                 const newOut = document.getElementById('new-patients');
                 const existOut = document.getElementById('existing-patients');

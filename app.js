@@ -266,6 +266,77 @@ async function pharmacyUpdate({ consultation_code, dispensed }) {
     return { data, error };
 }
 
+// Pharmacist edits medication details / refill info and uploads edited file to system
+async function pharmacyEdit({ consultation_code, medication_details, refill_quantity, notes }) {
+    if (useLocalFallback || !supabaseClient) {
+        const arr = _lsGet('consultations');
+        const idx = arr.findIndex(r => r.consultation_code === consultation_code);
+        if (idx === -1) return { error: 'Not found' };
+        arr[idx].pharmacy_edited_at = new Date().toISOString();
+        arr[idx].pharmacy_notes = notes || arr[idx].pharmacy_notes || null;
+        arr[idx].medication_details = medication_details || arr[idx].medication_details || null;
+        arr[idx].refill_quantity = refill_quantity || arr[idx].refill_quantity || null;
+        arr[idx].status = 'pharmacy-edited';
+        _lsSet('consultations', arr);
+        // notify admin and cashier that pharmacy uploaded edited file
+        notifyRole('admin', { consultation_code, patient_name: arr[idx].patient_name, action: 'pharmacy-edited' });
+        notifyRole('cashier', { consultation_code, patient_name: arr[idx].patient_name, action: 'pharmacy-edited' });
+        // try backend persistence
+        try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'pharmacy-edit', consultation: arr[idx] }]) }); } catch (e) { }
+        // broadcast storage change
+        localStorage.setItem('consultation-updated', new Date().toISOString());
+        return { data: arr[idx], error: null };
+    }
+
+    const { data, error } = await supabaseClient
+        .from('consultations')
+        .update({ pharmacy_notes: notes, medication_details: medication_details, refill_quantity: refill_quantity, status: 'pharmacy-edited', pharmacy_edited_at: new Date().toISOString() })
+        .eq('consultation_code', consultation_code)
+        .select()
+        .single();
+
+    if (!error && data) {
+        notifyRole('admin', { consultation_code, patient_name: data.patient_name, action: 'pharmacy-edited' });
+        notifyRole('cashier', { consultation_code, patient_name: data.patient_name, action: 'pharmacy-edited' });
+        try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'pharmacy-edit', consultation: data }]) }); } catch (e) { }
+        localStorage.setItem('consultation-updated', new Date().toISOString());
+    }
+
+    return { data, error };
+}
+
+// Mark patient absent (admin) and store absent flag
+async function markAbsent(consultation_code, absent = true) {
+    if (useLocalFallback || !supabaseClient) {
+        const arr = _lsGet('consultations');
+        const idx = arr.findIndex(r => r.consultation_code === consultation_code);
+        if (idx === -1) return { error: 'Not found' };
+        arr[idx].absent = !!absent;
+        arr[idx].absent_marked_at = new Date().toISOString();
+        _lsSet('consultations', arr);
+        localStorage.setItem('consultation-updated', new Date().toISOString());
+        return { data: arr[idx], error: null };
+    }
+
+    const { data, error } = await supabaseClient.from('consultations').update({ absent: absent, absent_marked_at: new Date().toISOString() }).eq('consultation_code', consultation_code).select().single();
+    if (!error && data) localStorage.setItem('consultation-updated', new Date().toISOString());
+    return { data, error };
+}
+
+// Send reminder SMS to patient (admin action)
+async function sendReminderToPatient(consultation_code, message) {
+    // Look up contact and send via sendSMS helper
+    const all = _lsGet('consultations');
+    const rec = all.find(r => r.consultation_code === consultation_code);
+    if (!rec) return { error: 'Not found' };
+    const phone = rec.contact_primary || rec.contact_secondary || null;
+    if (!phone) return { error: 'No phone number' };
+    await sendSMS(phone, message || `Reminder: ${rec.patient_name} — ${message || 'Please attend your appointment.'}`);
+    // persist reminder attempt to backend queue
+    try { fetch(BACKEND_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ action: 'reminder-sent', consultation_code, phone, message }]) }); } catch (e) { }
+    return { data: true, error: null };
+}
+
 async function fetchAllConsultations() {
     if (useLocalFallback || !supabaseClient) {
         return { data: _lsGet('consultations'), error: null };
@@ -281,6 +352,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const pharmacyForm = document.getElementById('pharmacy-form');
     const adminRefresh = document.getElementById('admin-refresh');
     const adminOutput = document.getElementById('admin-output');
+
+    // Render admin consultations as accessible cards when `#admin-list` exists,
+    // otherwise fallback to raw JSON output in `#admin-output` (rare).
+    async function renderAdminItems(items) {
+        const out = document.getElementById('admin-list');
+        if (out) {
+            if (!items || !items.length) {
+                out.textContent = 'No consultations yet.';
+                return;
+            }
+            out.innerHTML = '';
+            items.forEach(it => {
+                const div = document.createElement('div'); div.className = 'card';
+                const title = document.createElement('h3'); title.textContent = `${it.patient_name} — ${it.consultation_code}`;
+                const p = document.createElement('p');
+                p.innerHTML = `Fee: <strong>${Number(it.fee || 0).toLocaleString()}</strong> — Registered: ${it.cashier_registered_at || '-'} `;
+                const notes = document.createElement('p'); notes.style.marginTop = '8px'; notes.style.fontSize = '15px'; notes.textContent = `Provider notes: ${it.provider_notes || '-'} `;
+                const meta = document.createElement('div'); meta.className = 'meta';
+                meta.textContent = `Medication refill: ${it.medication_refill ? 'Yes' : 'No'} • Pharmacy dispensed: ${it.pharmacy_dispensed ? 'Yes' : 'No'} • Status: ${it.status || '-'}`;
+                const btnAbsent = document.createElement('button'); btnAbsent.className = 'btn signup'; btnAbsent.textContent = it.absent ? 'Marked Absent' : 'Mark Absent'; btnAbsent.dataset.code = it.consultation_code;
+                const btnRemind = document.createElement('button'); btnRemind.className = 'btn signin'; btnRemind.textContent = 'Remind Patient'; btnRemind.dataset.code = it.consultation_code;
+                const ctrl = document.createElement('div'); ctrl.style.marginTop = '8px'; ctrl.appendChild(btnAbsent); ctrl.appendChild(btnRemind);
+                div.appendChild(title); div.appendChild(p); div.appendChild(notes); div.appendChild(meta); div.appendChild(ctrl);
+                out.appendChild(div);
+            });
+            return;
+        }
+        if (adminOutput) {
+            adminOutput.textContent = JSON.stringify(items, null, 2);
+        }
+    }
 
     cashierForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -321,11 +423,13 @@ document.addEventListener('DOMContentLoaded', () => {
     adminRefresh?.addEventListener('click', async () => {
         const res = await fetchAllConsultations();
         if (res.error) return alert('Error: ' + (res.error.message || res.error));
-        adminOutput.textContent = JSON.stringify(res.data, null, 2);
+        await renderAdminItems(res.data || []);
     });
 
-    // Initial admin load
-    adminRefresh?.click();
+    // Initial admin load (if admin-list exists render cards)
+    if (document.getElementById('admin-list')) {
+        (async () => { const r = await fetchAllConsultations(); if (!r.error) await renderAdminItems(r.data || []); })();
+    }
 
     // Try to sync outbox when online
     window.addEventListener('online', () => { syncOutbox(); });
