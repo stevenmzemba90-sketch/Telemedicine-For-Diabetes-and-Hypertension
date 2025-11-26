@@ -147,6 +147,7 @@ async function updatePatient(consultation_code, fields = {}) {
         _lsSet('consultations', arr);
         localStorage.setItem('consultation-updated', new Date().toISOString());
         notifyRole('admin', { type: 'patient-updated', consultation_code, fields });
+        try { if (window.Comm) Comm.sendConsultationUpdate({ consultation_code, patient: arr[idx], fromRole: 'system' }); } catch (e) { }
         return { data: arr[idx], error: null };
     }
 
@@ -168,6 +169,32 @@ async function sendSMS(phone, message) {
         console.warn('SMS backend failed', err);
     }
 }
+
+// expose a lowercase helper expected by some dashboards
+async function sendSms(payload) {
+    // payload can be { to, message, consultation_code, patient_name }
+    if (!payload) return;
+    const to = payload.to || payload.phone || payload.patient_phone || null;
+    const message = payload.message || payload.body || '';
+    try {
+        await fetch(BACKEND_SMS, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, message, consultation_code: payload.consultation_code || null, patient_name: payload.patient_name || null, sender: payload.sender || 'admin' }) });
+    } catch (err) { console.warn('sendSms failed', err); }
+}
+
+async function fetchMessages({ consultation_code, patient_name } = {}) {
+    const qs = [];
+    if (consultation_code) qs.push('consultation_code=' + encodeURIComponent(consultation_code));
+    if (patient_name) qs.push('patient_name=' + encodeURIComponent(patient_name));
+    const url = (BACKEND_BASE + 'messages') + (qs.length ? ('?' + qs.join('&')) : '');
+    try {
+        const r = await fetch(url); if (!r.ok) return { error: 'fetch failed' };
+        const j = await r.json(); return { data: j.data || [] };
+    } catch (e) { return { error: e.message || String(e) } }
+}
+
+// attach to window for dashboard code to call
+window.sendSms = sendSms;
+window.fetchMessages = fetchMessages;
 
 // Admin schedule send helper
 async function sendSchedule({ date, message, targets = ['cashier', 'provider', 'pharmacist'] }) {
@@ -221,6 +248,9 @@ async function registerPatient({ name, age, sex, village, contact1, contact2, hi
     const local = _lsGet('consultations');
     local.push(record);
     _lsSet('consultations', local);
+
+    // broadcast new consultation to other dashboards if Comm available
+    try { if (window.Comm) Comm.sendConsultationUpdate({ consultation_code: code, patient: record, fromRole: 'cashier' }); } catch (e) { }
 
     // If supabase not configured, add to outbox and attempt to post to backend
     if (useLocalFallback || !supabaseClient) {

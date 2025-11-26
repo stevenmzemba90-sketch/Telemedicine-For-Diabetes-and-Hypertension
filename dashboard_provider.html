@@ -7,145 +7,40 @@
     <title>Provider Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
     <style>
-        :root {
-            font-size: 18px;
-        }
-
-        body {
-            background: #fff;
-            color: #000;
-            font-family: Arial, Helvetica, sans-serif;
-        }
-
         .consultation {
             background: #f7f7f7;
             padding: 10px;
             margin: 8px 0;
-            border-radius: 6px;
-            line-height: 1.5
-        }
-
-        .container {
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 18px
-        }
-
-        .btn {
-            padding: 10px 14px;
-            font-size: 1rem;
-            border-radius: 6px;
-            cursor: pointer
-        }
-
-        .btn.signin {
-            background: #2b7cff;
-            color: #fff;
-            border: none
-        }
-
-        .btn.signup {
-            background: #17a673;
-            color: #fff;
-            border: none
-        }
-
-        a.skip-link {
-            position: absolute;
-            left: -999px;
-            top: auto;
-            width: 1px;
-            height: 1px;
-            overflow: hidden
-        }
-
-        a.skip-link:focus {
-            left: 8px;
-            top: 8px;
-            width: auto;
-            height: auto;
-            padding: 8px 12px;
-            background: #000;
-            color: #fff;
-            z-index: 9999;
-            border-radius: 4px
-        }
-
-        .accessible {
-            font-size: 1.25rem
-        }
-
-        .high-contrast {
-            background: #000 !important;
-            color: #fff !important
-        }
-
-        .high-contrast .consultation {
-            background: #111 !important;
-            color: #fff
-        }
-
-        :focus-visible {
-            outline: 3px solid #ffbf47;
-            outline-offset: 2px
-        }
-
-        .reader {
-            position: fixed;
-            right: 12px;
-            top: 60px;
-            width: 42%;
-            max-width: 640px;
-            background: #fff;
-            border: 2px solid #ccc;
-            padding: 12px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, .15);
-            z-index: 999
-        }
-
-        .reader .close {
-            float: right
-        }
-
-        @media (max-width:800px) {
-            .reader {
-                position: static;
-                width: auto;
-                max-width: none;
-                margin-top: 12px
-            }
+            border-radius: 6px
         }
     </style>
 </head>
 
 <body>
-    <a href="#maincontent" class="skip-link">Skip to main content</a>
-    <div id="a11y-announcer" aria-live="polite" aria-atomic="true"
-        style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden"></div>
-
-    <main class="page">
-        <div class="container" id="maincontent" role="main" aria-labelledby="page-heading">
-            <h1 id="page-heading">Healthcare Provider Dashboard</h1>
+    <main class="page page-centered">
+        <div class="container">
+            <h1>Healthcare Provider Dashboard</h1>
             <p id="welcome">Loading...</p>
-            <button id="signout" class="btn signin" aria-label="Sign out">Sign out</button>
+            <button id="signout" class="btn signin">Sign out</button>
             <div style="margin-top:8px">
-                <button id="a11y-toggle" class="btn signup" aria-pressed="false">Toggle Large Text</button>
-                <button id="contrast-toggle" class="btn signin" aria-pressed="false">Toggle High Contrast</button>
+                <button id="a11y-toggle" class="btn signup">Toggle Large Text</button>
+                <button id="contrast-toggle" class="btn signin">Toggle High Contrast</button>
             </div>
 
             <section>
                 <h2>Today's Consultations (from Cashier)</h2>
-                <div id="provider-list" aria-live="polite">Loading...</div>
+                <div id="provider-list">Loading...</div>
             </section>
 
             <section style="margin-top:12px">
                 <h2>Today's Attendance</h2>
-                <div id="attendance-list" aria-live="polite">Loading...</div>
+                <div id="attendance-list">Loading...</div>
             </section>
         </div>
     </main>
 
     <script src="app.js"></script>
+    <script src="comm.js"></script>
     <script>
         (async function () {
             const sess = localStorage.getItem('session');
@@ -160,8 +55,11 @@
                 const attOut = document.getElementById('attendance-list');
                 if (res.error) { out.textContent = 'Error loading consultations'; return; }
                 const all = (res.data || []);
-
-                const items = all.filter(r => { const d = parseISO(r.cashier_registered_at); return isSameDay(d, new Date()); });
+                // filter consultations registered today
+                const items = all.filter(r => {
+                    const d = parseISO(r.cashier_registered_at);
+                    return isSameDay(d, new Date());
+                });
 
                 if (!items.length) { out.textContent = 'No incoming consultations for today.'; attOut.textContent = 'No attendance yet.'; return; }
                 out.innerHTML = '';
@@ -172,15 +70,16 @@
                         Age: ${it.age || '-'} Sex: ${it.sex || '-'}<br>
                         <small>Registered at: ${it.cashier_registered_at || ''}</small>
                         <div style="margin-top:8px">
-                            <textarea placeholder="Provider notes" rows="2" style="width:100%" data-code="${it.consultation_code}" aria-label="Provider notes for ${it.patient_name}"></textarea>
-                            <label><input type="checkbox" data-code-refill="${it.consultation_code}" ${it.medication_refill ? 'checked' : ''} aria-label="Medication refill for ${it.patient_name}" /> Medication refill</label>
-                            <button data-save="${it.consultation_code}" class="btn signup" aria-label="Save update for ${it.patient_name}">Save Update</button>
-                            <button class="btn signin" data-open-file="${it.consultation_code}" aria-label="Open patient file for ${it.patient_name}">Open Patient File</button>
+                            <textarea placeholder="Provider notes" rows="2" style="width:100%" data-code="${it.consultation_code}"></textarea>
+                            <label><input type="checkbox" data-code-refill="${it.consultation_code}" ${it.medication_refill ? 'checked' : ''} /> Medication refill</label>
+                            <button data-save="${it.consultation_code}" class="btn signup">Save Update</button>
+                            <button class="btn signin" data-open-file="${it.consultation_code}">Open Patient File</button>
                         </div>
                     `;
                     out.appendChild(div);
                 });
 
+                // attendance list
                 attOut.innerHTML = '';
                 items.forEach(it => {
                     const el = document.createElement('div'); el.className = 'consultation';
@@ -188,7 +87,7 @@
                     attOut.appendChild(el);
                 });
 
-                // attach save handlers
+                // attach handlers
                 out.querySelectorAll('button[data-save]').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
                         const code = btn.getAttribute('data-save');
@@ -197,102 +96,107 @@
                         const notes = ta.value.trim();
                         const refill = !!(cb && cb.checked);
                         const r = await providerUpdate({ consultation_code: code, notes, medication_refill: refill });
-                        if (r.error) { const msg = 'Error saving update: ' + (r.error.message || r.error); alert(msg); document.getElementById('a11y-announcer').textContent = msg; return; }
-                        const savedMsg = 'Provider update saved for ' + code;
-                        alert(savedMsg); document.getElementById('a11y-announcer').textContent = savedMsg; load();
+                        if (r.error) return alert('Error: ' + (r.error.message || r.error));
+                        alert('Provider update saved');
+                        load();
                     });
                 });
-
-                // attach open-file handlers
-                out.querySelectorAll('button[data-open-file]').forEach(btn => btn.addEventListener('click', async (ev) => {
-                    const code = btn.getAttribute('data-open-file');
-                    const res = await fetchAllConsultations();
-                    if (res.error) { const m = 'Error loading file'; alert(m); document.getElementById('a11y-announcer').textContent = m; return; }
-                    const rec = (res.data || []).find(r => r.consultation_code === code);
-                    if (!rec) { const m = 'Record not found'; alert(m); document.getElementById('a11y-announcer').textContent = m; return; }
-
-                    document.getElementById('prov-reader-content').innerHTML = `
-                        <div class="patient-summary">
-                            <h2>${rec.patient_name} — ${rec.consultation_code}</h2>
-                            <p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p>
-                            <div style="margin-top:8px"><button id="prov-edit-file" class="btn signup" data-code="${rec.consultation_code}">Edit Patient File</button></div>
-                        </div>
-                        <hr>
-                        <h3>Provider notes</h3>
-                        <div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div>
-                        <hr>
-                        <h3>Pharmacy</h3>
-                        <div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>
-                        <div id="prov-edit-area" style="display:none; margin-top:10px"></div>
-                    `;
-                    document.getElementById('provider-reader').style.display = '';
-
-                    // attach edit handler for this opened record
-                    const editBtn = document.getElementById('prov-edit-file');
-                    if (editBtn) editBtn.addEventListener('click', () => {
-                        const code = editBtn.getAttribute('data-code');
-                        const area = document.getElementById('prov-edit-area');
-                        if (area.style.display === '') { area.style.display = 'none'; return; }
-                        area.style.display = '';
-                        area.innerHTML = `
-                            <h4>Edit Patient & Provider Update</h4>
-                            <label>Name:<br><input id="prov-edit-name" value="${rec.patient_name || ''}" style="width:100%" /></label>
-                            <label>Age: <input id="prov-edit-age" value="${rec.age || ''}" type="number" /></label>
-                            <label>Sex: <select id="prov-edit-sex"><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select></label>
-                            <label>Village:<br><input id="prov-edit-village" value="${rec.village || ''}" style="width:100%" /></label>
-                            <label>Primary contact:<br><input id="prov-edit-contact1" value="${rec.contact_primary || ''}" style="width:100%" /></label>
-                            <hr>
-                            <label>Provider notes:<br><textarea id="prov-edit-notes" rows="4" style="width:100%">${rec.provider_notes || ''}</textarea></label>
-                            <label><input type="checkbox" id="prov-edit-refill" ${rec.medication_refill ? 'checked' : ''} /> Medication refill required</label>
-                            <div style="margin-top:8px"><button id="prov-save-patient" class="btn signup">Save Patient & Provider Update</button></div>
-                        `;
-                        document.getElementById('prov-edit-sex').value = rec.sex || '';
-                        document.getElementById('prov-save-patient').addEventListener('click', async () => {
-                            const patientFields = {
-                                patient_name: document.getElementById('prov-edit-name').value.trim(),
-                                age: document.getElementById('prov-edit-age').value.trim() || null,
-                                sex: document.getElementById('prov-edit-sex').value || null,
-                                village: document.getElementById('prov-edit-village').value.trim() || null,
-                                contact_primary: document.getElementById('prov-edit-contact1').value.trim() || null
-                            };
-                            const notes = document.getElementById('prov-edit-notes').value.trim();
-                            const refill = !!document.getElementById('prov-edit-refill').checked;
-                            const up = await updatePatient(code, patientFields);
-                            if (up.error) { const m = 'Failed to save patient demographics: ' + (up.error.message || up.error); alert(m); document.getElementById('a11y-announcer').textContent = m; return; }
-                            const pu = await providerUpdate({ consultation_code: code, notes, medication_refill: refill });
-                            if (pu.error) { const m = 'Failed to save provider update: ' + (pu.error.message || pu.error); alert(m); document.getElementById('a11y-announcer').textContent = m; return; }
-                            const okm = 'Patient file and provider update saved.'; alert(okm); document.getElementById('a11y-announcer').textContent = okm; area.style.display = 'none';
-                            const header = document.getElementById('prov-reader-content').querySelector('.patient-summary h2'); if (header) header.textContent = `${patientFields.patient_name} — ${code}`;
-                        });
-                    });
-                }));
             }
 
             // accessibility controls
             document.getElementById('a11y-toggle').addEventListener('click', () => {
-                const c = document.querySelector('.container');
-                const toggled = c.classList.toggle('accessible');
-                document.getElementById('a11y-toggle').setAttribute('aria-pressed', toggled ? 'true' : 'false');
-                document.getElementById('a11y-announcer').textContent = toggled ? 'Large text enabled' : 'Large text disabled';
+                document.querySelector('.container').classList.toggle('accessible');
             });
             document.getElementById('contrast-toggle').addEventListener('click', () => {
-                const c = document.querySelector('.container');
-                const toggled = c.classList.toggle('high-contrast');
-                document.getElementById('contrast-toggle').setAttribute('aria-pressed', toggled ? 'true' : 'false');
-                document.getElementById('a11y-announcer').textContent = toggled ? 'High contrast enabled' : 'High contrast disabled';
+                document.querySelector('.container').classList.toggle('high-contrast');
             });
 
             // create provider reader panel if not present
             if (!document.getElementById('provider-reader')) {
                 const reader = document.createElement('div'); reader.id = 'provider-reader'; reader.className = 'reader'; reader.style.display = 'none';
-                reader.innerHTML = `<button class="close btn signin" id="close-provider-reader" aria-label="Close reader">Close</button><div class="controls"><label>Font size: <input id="prov-reader-font-size" type="range" min="14" max="30" value="20"/></label><label>Font: <select id="prov-reader-font"><option value="Arial, sans-serif">Default</option><option value="Georgia, serif">Serif</option><option value="'Open Sans', Arial, sans-serif">Open Sans</option></select></div><div class="content" id="prov-reader-content"></div>`;
+                reader.innerHTML = `<button class="close btn signin" id="close-provider-reader">Close</button><div class="controls"><label>Font size: <input id="prov-reader-font-size" type="range" min="14" max="30" value="20"/></label><label>Font: <select id="prov-reader-font"><option value="Arial, sans-serif">Default</option><option value="Georgia, serif">Serif</option><option value="'Open Sans', Arial, sans-serif">Open Sans</option></select></div><div class="content" id="prov-reader-content"></div>`;
                 document.body.appendChild(reader);
                 document.getElementById('close-provider-reader').addEventListener('click', () => { document.getElementById('provider-reader').style.display = 'none'; });
                 document.getElementById('prov-reader-font-size').addEventListener('input', (e) => { document.querySelector('#prov-reader-content').style.fontSize = e.target.value + 'px'; });
                 document.getElementById('prov-reader-font').addEventListener('change', (e) => { document.querySelector('#prov-reader-content').style.fontFamily = e.target.value; });
             }
 
+            // open patient file handler
+            document.querySelectorAll('button[data-open-file]').forEach(btn => btn.addEventListener('click', async (ev) => {
+                const code = btn.getAttribute('data-open-file');
+                const res = await fetchAllConsultations();
+                if (res.error) return alert('Error loading file');
+                const rec = (res.data || []).find(r => r.consultation_code === code);
+                if (!rec) return alert('Record not found');
+                document.getElementById('prov-reader-content').innerHTML = `
+                    <div class="patient-summary">
+                        <h2>${rec.patient_name} — ${rec.consultation_code}</h2>
+                        <p><strong>Age:</strong> ${rec.age || '-'} <strong>Sex:</strong> ${rec.sex || '-'} <br><strong>Village:</strong> ${rec.village || '-'}<br><strong>Contacts:</strong> ${rec.contact_primary || ''} ${rec.contact_secondary || ''}</p>
+                        <div style="margin-top:8px"><button id="prov-edit-file" class="btn signup" data-code="${rec.consultation_code}">Edit Patient File</button></div>
+                    </div>
+                    <hr>
+                    <h3>Provider notes</h3>
+                    <div>${(rec.provider_notes || '<em>No notes</em>').replace(/\n/g, '<br>')}</div>
+                    <hr>
+                    <h3>Pharmacy</h3>
+                    <div>${(rec.medication_details || '<em>None</em>').replace(/\n/g, '<br>')}</div>
+                    <div id="prov-edit-area" style="display:none; margin-top:10px"></div>
+                `;
+                document.getElementById('provider-reader').style.display = '';
+
+                // attach edit handler
+                document.getElementById('prov-edit-file').addEventListener('click', () => {
+                    const code = document.getElementById('prov-edit-file').getAttribute('data-code');
+                    const area = document.getElementById('prov-edit-area');
+                    if (area.style.display === '') { area.style.display = 'none'; return; }
+                    area.style.display = '';
+                    area.innerHTML = `
+                        <h4>Edit Patient & Provider Update</h4>
+                        <label>Name:<br><input id="prov-edit-name" value="${rec.patient_name || ''}" style="width:100%" /></label>
+                        <label>Age: <input id="prov-edit-age" value="${rec.age || ''}" type="number" /></label>
+                        <label>Sex: <select id="prov-edit-sex"><option value="">Select</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select></label>
+                        <label>Village:<br><input id="prov-edit-village" value="${rec.village || ''}" style="width:100%" /></label>
+                        <label>Primary contact:<br><input id="prov-edit-contact1" value="${rec.contact_primary || ''}" style="width:100%" /></label>
+                        <hr>
+                        <label>Provider notes:<br><textarea id="prov-edit-notes" rows="4" style="width:100%">${rec.provider_notes || ''}</textarea></label>
+                        <label><input type="checkbox" id="prov-edit-refill" ${rec.medication_refill ? 'checked' : ''} /> Medication refill required</label>
+                        <div style="margin-top:8px"><button id="prov-save-patient" class="btn signup">Save Patient & Provider Update</button></div>
+                    `;
+                    // set sex value
+                    document.getElementById('prov-edit-sex').value = rec.sex || '';
+                    document.getElementById('prov-save-patient').addEventListener('click', async () => {
+                        const patientFields = {
+                            patient_name: document.getElementById('prov-edit-name').value.trim(),
+                            age: document.getElementById('prov-edit-age').value.trim() || null,
+                            sex: document.getElementById('prov-edit-sex').value || null,
+                            village: document.getElementById('prov-edit-village').value.trim() || null,
+                            contact_primary: document.getElementById('prov-edit-contact1').value.trim() || null
+                        };
+                        const notes = document.getElementById('prov-edit-notes').value.trim();
+                        const refill = !!document.getElementById('prov-edit-refill').checked;
+
+                        // update patient demographics first
+                        const up = await updatePatient(code, patientFields);
+                        if (up.error) return alert('Failed to save patient demographics: ' + (up.error.message || up.error));
+
+                        // then send provider update which will notify pharmacist when refill is requested
+                        const pu = await providerUpdate({ consultation_code: code, notes, medication_refill: refill });
+                        if (pu.error) return alert('Failed to save provider update: ' + (pu.error.message || pu.error));
+
+                        alert('Patient file and provider update saved; pharmacist notified if refill requested.');
+                        area.style.display = 'none';
+                        // reload content headline
+                        document.getElementById('prov-reader-content').querySelector('.patient-summary h2').textContent = `${patientFields.patient_name} — ${code}`;
+                        // broadcast update to other dashboards
+                        if (window.Comm) {
+                            Comm.sendConsultationUpdate({ consultation_code: code, patient: patientFields, notes, medication_refill: refill, fromRole: 'provider' });
+                        }
+                    });
+                });
+            }));
+
             load();
+            // refresh periodically
             setInterval(load, 15000);
         })();
     </script>

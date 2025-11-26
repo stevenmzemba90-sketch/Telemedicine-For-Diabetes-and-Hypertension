@@ -214,3 +214,12 @@ body {
     right: 22px;
     top: 22px
 }
+
+/* Center page helper: apply to dashboards by adding `page-centered` to the <main> element */
+.page-centered {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}

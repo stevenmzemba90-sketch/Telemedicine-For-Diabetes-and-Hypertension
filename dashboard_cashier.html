@@ -7,17 +7,143 @@
     <title>Cashier Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
     <style>
+        /* Page layout */
+        .page {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 0;
+            min-height: 100vh;
+        }
+
+        /* Main container: centered with responsive max width */
+        .container {
+            max-width: 980px;
+            width: 100%;
+            margin: 0 12px;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Sections inside container take full width */
+        .container>section {
+            width: 100%;
+        }
+
+        /* Consultation cards */
         .consultation {
             background: #f7f7f7;
             padding: 10px;
             margin: 8px 0;
-            border-radius: 6px
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            box-sizing: border-box;
+        }
+
+        /* Chat box */
+        .chat {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            height: 320px;
+            background: #fff;
+            box-sizing: border-box;
+        }
+
+        .chat .messages {
+            flex: 1;
+            overflow: auto;
+            padding: 8px;
+        }
+
+        .chat .input {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
+
+        /* Message bubbles */
+        .msg {
+            padding: 8px;
+            border-radius: 14px;
+            max-width: 70%;
+            margin: 6px 0;
+            box-sizing: border-box;
+        }
+
+        .msg.me {
+            background: #dcf8c6;
+            align-self: flex-end;
+        }
+
+        .msg.them {
+            background: #f1f0f0;
+            align-self: flex-start;
+        }
+
+        /* Form inputs/buttons span full width for consistent alignment */
+        #cashier-local-form input,
+        #cashier-local-form select,
+        #cashier-local-form .btn {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 6px 0;
+        }
+
+        /* Reader panel styles (if present) */
+        .reader {
+            position: fixed;
+            right: 12px;
+            top: 60px;
+            width: 360px;
+            max-width: calc(100% - 24px);
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+            z-index: 9999;
+        }
+
+        .reader .content {
+            max-height: 60vh;
+            overflow: auto;
+        }
+
+        /* Responsive tweaks */
+        @media (max-width: 700px) {
+            .container {
+                padding: 12px;
+            }
+
+            .consultation {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .reader {
+                position: fixed;
+                left: 12px;
+                right: 12px;
+                top: 80px;
+                width: auto;
+            }
         }
     </style>
 </head>
 
 <body>
-    <main class="page">
+    <main class="page page-centered">
         <div class="container">
             <h1>Cashier Dashboard</h1>
             <p id="welcome">Loading...</p>
@@ -39,11 +165,24 @@
                     <button class="btn signin" type="submit">Register & Generate Consultation</button>
                 </form>
 
-                <div style="margin-top:12px;">
+                <div style="margin-top:16px;">
                     <strong>Totals (MWK):</strong>
                     <div>Today: <span id="tot-day">0</span> (count <span id="cnt-day">0</span>)</div>
                     <div>This week: <span id="tot-week">0</span> (count <span id="cnt-week">0</span>)</div>
                     <div>This month: <span id="tot-month">0</span> (count <span id="cnt-month">0</span>)</div>
+                </div>
+            </section>
+
+            <section style="margin-top:14px">
+                <h2>Chat / SMS (Patient)</h2>
+                <div id="chat-root" class="chat">
+                    <div class="messages" id="chat-messages">Select a patient to load chat.</div>
+                    <div class="input">
+                        <input id="chat-text" placeholder="Type a message" style="flex:1" />
+                        <button id="chat-send" class="btn signin">Send</button>
+                        <input type="file" id="chat-file" />
+                        <button id="chat-upload" class="btn signin">Upload</button>
+                    </div>
                 </div>
             </section>
 
@@ -62,6 +201,7 @@
     </main>
 
     <script src="app.js"></script>
+    <script src="comm.js"></script>
     <script>
         (function () {
             const sess = localStorage.getItem('session');
@@ -133,6 +273,8 @@
                         alert('Attendance recorded. Consultation code: ' + res.data.consultation_code);
                         loadPatients();
                     });
+                    // load chat/messages when clicking patient quick button
+                    btn.addEventListener('dblclick', () => { loadChatForPatient(src.consultation_code || src.patient_name || name, src.patient_name || name); });
                 });
 
                 out.querySelectorAll('button[data-open-file]').forEach(btn => {
@@ -175,6 +317,69 @@
                     if (isNew) newOut.appendChild(el); else existOut.appendChild(el);
                 });
             }
+
+            // chat functions
+            let activeConsultCode = null, activePatientName = null;
+            async function loadChatForPatient(code, name) {
+                activeConsultCode = code; activePatientName = name;
+                document.getElementById('chat-messages').innerHTML = 'Loading messages...';
+                const res = await fetch('/messages?consultation_code=' + encodeURIComponent(code));
+                const j = await res.json();
+                if (!j.ok) return document.getElementById('chat-messages').textContent = 'No messages';
+                const msgs = j.data || [];
+                const el = document.getElementById('chat-messages'); el.innerHTML = '';
+                msgs.forEach(m => {
+                    const d = document.createElement('div'); d.className = 'msg ' + (m.sender === (s.name || s.email) ? 'me' : 'them');
+                    d.innerHTML = `<div><small>${m.sender} • ${new Date(m.ts).toLocaleString()}</small></div><div>${escapeHtml(m.message)}</div>`;
+                    el.appendChild(d);
+                });
+                el.scrollTop = el.scrollHeight;
+            }
+
+            document.getElementById('chat-send').addEventListener('click', async () => {
+                const txt = document.getElementById('chat-text').value.trim();
+                if (!txt) return;
+                if (!activeConsultCode && !activePatientName) return alert('Select a patient first (click Give today)');
+                const payload = { consultation_code: activeConsultCode, patient_name: activePatientName, sender: s.name || s.email, message: txt };
+                const resp = await fetch('/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const j = await resp.json();
+                if (!j.ok) return alert('Failed to send');
+                document.getElementById('chat-text').value = '';
+                loadChatForPatient(activeConsultCode || activePatientName, activePatientName);
+                // optionally trigger SMS endpoint
+                try { await fetch('/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: '', message: txt }) }); } catch (e) { }
+            });
+
+            document.getElementById('chat-upload').addEventListener('click', async () => {
+                const f = document.getElementById('chat-file').files[0];
+                if (!f) return alert('Choose a file');
+                if (!activeConsultCode && !activePatientName) return alert('Select a patient first');
+                const fd = new FormData();
+                fd.append('file', f);
+                fd.append('consultation_code', activeConsultCode || '');
+                fd.append('patient_name', activePatientName || '');
+                fd.append('uploader', s.name || s.email);
+                const resp = await fetch('/upload', { method: 'POST', body: fd });
+                const j = await resp.json();
+                if (!j.ok) return alert('Upload failed');
+                alert('Uploaded');
+            });
+
+            // listen for consultation updates from other dashboards
+            if (window.Comm) {
+                Comm.onMessage((m) => {
+                    if (!m || !m.type) return;
+                    if (m.type === 'consultation_update') {
+                        // if update is about a consultation, refresh lists
+                        try { loadPatients(); } catch (e) { }
+                        // show a small toast
+                        console.info('Consultation update received', m.payload);
+                    }
+                });
+            }
+
+            function escapeHtml(text) { if (!text) return ''; return text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
 
             loadPatients();
             setInterval(loadPatients, 15000);

@@ -9,7 +9,7 @@
 </head>
 
 <body>
-    <main class="page">
+    <main class="page page-centered">
         <div class="container">
             <h1>Pharmacist Dashboard</h1>
             <p id="welcome">Loading...</p>
@@ -31,6 +31,7 @@
     </main>
 
     <script src="app.js"></script>
+    <script src="comm.js"></script>
     <script>
         (async function () {
             const sess = localStorage.getItem('session');
@@ -87,6 +88,10 @@
                         const res = await pharmacyEdit({ consultation_code: code, medication_details: med, refill_quantity: qty ? Number(qty) : null, notes: pnotes });
                         if (res.error) return alert('Error: ' + (res.error.message || res.error));
                         alert('Pharmacy file uploaded to admin & cashier');
+                        // broadcast update
+                        if (window.Comm) {
+                            Comm.sendConsultationUpdate({ consultation_code: code, medication_details: med, refill_quantity: qty ? Number(qty) : null, pharmacy_notes: pnotes, fromRole: 'pharmacist' });
+                        }
                         load();
                     });
                 });
