@@ -6,52 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
-    <style>
-        /* small inline styles for new admin widgets */
-        .admin-panel {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .admin-card {
-            flex: 1 1 320px;
-            background: rgba(255, 255, 255, 0.04);
-            padding: 10px;
-            border-radius: 6px
-        }
-
-        #login-modal {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.5);
-        }
-
-        #login-box {
-            background: #fff;
-            padding: 18px;
-            border-radius: 8px;
-            width: 320px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2)
-        }
-
-        #connected-list div {
-            padding: 6px 0;
-            border-bottom: 1px dashed #ddd
-        }
-
-        #sms-queue div {
-            padding: 6px 0;
-            border-bottom: 1px dashed #ddd
-        }
-    </style>
 </head>
 
 <body>
-    <main class="page page-centered">
+    <main class="page">
         <div class="container">
             <h1>Admin Dashboard</h1>
             <p id="welcome">Loading...</p>
@@ -74,423 +32,103 @@
                 <button id="send-sched" class="btn signup" style="margin-top:8px">Send Schedule</button>
             </section>
 
-            <section class="admin-panel" style="margin-top:12px">
-                <div class="admin-card">
-                    <h3>System Overview</h3>
-                    <canvas id="overview-chart" width="400" height="200"></canvas>
-                </div>
-                <div class="admin-card">
-                    <h3>Connected Users</h3>
-                    <div id="connected-list">Loading...</div>
-                </div>
-                <div class="admin-card">
-                    <h3>Offline SMS Queue</h3>
-                    <div id="sms-queue">No queued messages</div>
-                    <div style="margin-top:8px"><button id="process-queue" class="btn signup">Process Queue</button>
-                    </div>
-                </div>
-                <div class="admin-card">
-                    <h3>Admin SMS Chat</h3>
-                    <label>Patient / Consultation: <select id="chat-consult-select">
-                            <option value="">-- choose --</option>
-                        </select></label>
-                    <div id="chat-messages"
-                        style="height:160px;overflow:auto;border:1px solid #ddd;padding:6px;margin-top:6px;background:#fff;color:#000">
-                    </div>
-                    <textarea id="chat-input" rows="3" style="width:100%;margin-top:6px"
-                        placeholder="Type message to patient..."></textarea>
-                    <div style="margin-top:6px;text-align:right"><button id="chat-send" class="btn signup">Send
-                            SMS</button></div>
-                </div>
-            </section>
-
-            <section style="margin-top:12px">
+            <section>
                 <h2>All Consultations</h2>
                 <div id="admin-list">Loading...</div>
-            </section>
-
-            <section style="margin-top:12px">
-                <h2>Manage Accounts</h2>
-                <div id="manage-accounts">Loading accounts...</div>
-            </section>
-
-            <section style="margin-top:12px">
-                <h2>Patient Chart</h2>
-                <label>Select patient: <select id="patient-select">
-                        <option value="">-- choose --</option>
-                    </select></label>
-                <canvas id="patient-chart" width="600" height="260" style="margin-top:8px"></canvas>
             </section>
         </div>
     </main>
 
     <script>window.ADMIN_CUSTOM_RENDERER = true;</script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="app.js"></script>
-    <script src="comm.js"></script>
     <script>
-        (function () {
-            // admin credentials (client-side prototype only)
-            const ADMIN_EMAIL = 'mzembasteven@gmail.com';
-            const ADMIN_PASS = 'beston2010';
+        (async function () {
+            const sess = localStorage.getItem('session');
+            if (!sess) { window.location.href = './index.html'; }
+            const s = sess ? JSON.parse(sess) : null;
+            document.getElementById('welcome').textContent = s ? `Welcome, ${s.name || s.email} (${s.role})` : 'Not signed in';
+            document.getElementById('signout').addEventListener('click', () => { localStorage.removeItem('session'); window.location.href = './index.html'; });
 
-            // -- Login modal (simple client-side auth for admin demo) --
-            function showLoginModal() {
-                if (document.getElementById('login-modal')) return;
-                const modal = document.createElement('div'); modal.id = 'login-modal';
-                modal.innerHTML = `
-                    <div id="login-box">
-                        <h3>Admin sign in</h3>
-                        <label>Email<br/><input id="admin-email" type="email" style="width:100%" /></label>
-                        <label>Password<br/><input id="admin-pass" type="password" style="width:100%" /></label>
-                        <div style="margin-top:10px;text-align:right">
-                            <button id="admin-login" class="btn signup">Sign in</button>
-                        </div>
-                        <p style="font-size:12px;color:#666;margin-top:8px">Use admin account to access system</p>
-                    </div>`;
-                document.body.appendChild(modal);
-                document.getElementById('admin-email').value = ADMIN_EMAIL;
-                document.getElementById('admin-login').addEventListener('click', () => {
-                    const e = document.getElementById('admin-email').value.trim();
-                    const p = document.getElementById('admin-pass').value;
-                    if (e === ADMIN_EMAIL && p === ADMIN_PASS) {
-                        const session = { email: e, name: 'Admin', role: 'admin' };
-                        localStorage.setItem('session', JSON.stringify(session));
-                        modal.remove();
-                        initAfterLogin();
-                    } else {
-                        alert('Invalid admin credentials');
-                    }
-                });
+            async function renderCard(out, it) {
+                const div = document.createElement('div'); div.className = 'card';
+                const title = document.createElement('h3'); title.textContent = `${it.patient_name} — ${it.consultation_code}`;
+                const p = document.createElement('p');
+                p.innerHTML = `Fee: <strong>${Number(it.fee || 0).toLocaleString()}</strong> — Registered: ${it.cashier_registered_at || '-'} `;
+                const notes = document.createElement('p'); notes.style.marginTop = '8px'; notes.style.fontSize = '15px'; notes.textContent = `Provider notes: ${it.provider_notes || '-'} `;
+                const meta = document.createElement('div'); meta.className = 'meta';
+                meta.textContent = `Medication refill: ${it.medication_refill ? 'Yes' : 'No'} • Pharmacy dispensed: ${it.pharmacy_dispensed ? 'Yes' : 'No'} • Status: ${it.status || '-'}`;
+                const btnAbsent = document.createElement('button'); btnAbsent.className = 'btn signup'; btnAbsent.textContent = it.absent ? 'Marked Absent' : 'Mark Absent'; btnAbsent.dataset.code = it.consultation_code;
+                const btnRemind = document.createElement('button'); btnRemind.className = 'btn signin'; btnRemind.textContent = 'Remind Patient'; btnRemind.dataset.code = it.consultation_code;
+                const ctrl = document.createElement('div'); ctrl.style.marginTop = '8px'; ctrl.appendChild(btnAbsent); ctrl.appendChild(btnRemind);
+                div.appendChild(title); div.appendChild(p); div.appendChild(notes); div.appendChild(meta); div.appendChild(ctrl);
+                out.appendChild(div);
             }
 
-            // utility: safe call existing backend helpers if present
-            async function safeCall(name, ...args) {
-                if (window[name] && typeof window[name] === 'function') {
-                    try { return await window[name](...args); } catch (e) { return { error: e.message || String(e) }; }
-                }
-                return { error: 'Not available' };
-            }
-
-            // SMS queue in localStorage
-            const SMS_KEY = 'smsQueue:v1';
-            function loadSmsQueue() { try { return JSON.parse(localStorage.getItem(SMS_KEY) || '[]'); } catch { return []; } }
-            function saveSmsQueue(q) { localStorage.setItem(SMS_KEY, JSON.stringify(q)); renderSmsQueue(); }
-            function enqueueSms(item) { const q = loadSmsQueue(); q.push(Object.assign({ queuedAt: new Date().toISOString(), status: 'queued' }, item)); saveSmsQueue(q); }
-            async function processQueue() {
-                const q = loadSmsQueue(); if (!q.length) return alert('Queue empty');
-                const results = [];
-                for (let i = 0; i < q.length; i++) {
-                    const msg = q[i];
-                    if (navigator.onLine) {
-                        // attempt to use existing sendReminderToPatient or sendSMS if available
-                        let sent = false;
-                        if (window.sendSms && typeof window.sendSms === 'function') {
-                            try { await window.sendSms(msg); sent = true; }
-                            catch (e) { sent = false; }
-                        }
-                        if (!sent) {
-                            // simulate send: mark as sent
-                            msg.status = 'sent'; msg.sentAt = new Date().toISOString();
-                        }
-                    } else {
-                        msg.status = 'queued';
-                    }
-                    results.push(msg);
-                }
-                // keep only not-sent messages
-                const remaining = results.filter(x => x.status !== 'sent');
-                saveSmsQueue(remaining);
-                alert('Processed queue; sent: ' + (q.length - remaining.length));
-            }
-            function sendQueueItem(index) {
-                const q = loadSmsQueue(); if (index < 0 || index >= q.length) return alert('Invalid queue item');
-                const msg = q[index];
-                (async () => {
-                    if (!navigator.onLine) return alert('Offline: cannot send now');
-                    let sent = false;
-                    if (window.sendSms && typeof window.sendSms === 'function') {
-                        try { await window.sendSms(msg); sent = true; }
-                        catch (e) { sent = false; }
-                    }
-                    if (!sent) { msg.status = 'sent'; msg.sentAt = new Date().toISOString(); }
-                    const arr = loadSmsQueue(); arr.splice(index, 1); saveSmsQueue(arr);
-                    renderSmsQueue(); alert('Message sent/marked sent');
-                })();
-            }
-
-            function removeQueueItem(index) {
-                const arr = loadSmsQueue(); if (index < 0 || index >= arr.length) return; arr.splice(index, 1); saveSmsQueue(arr); renderSmsQueue();
-            }
-
-            function renderSmsQueue() {
-                const el = document.getElementById('sms-queue'); if (!el) return;
-                const q = loadSmsQueue(); if (!q.length) { el.textContent = 'No queued messages'; return; }
-                el.innerHTML = '';
-                q.forEach((m, idx) => {
-                    const row = document.createElement('div');
-                    const info = document.createElement('span'); info.textContent = `${m.to || m.patient || 'unknown'} — ${m.type || 'generic'} — ${m.message} — ${m.status}`;
-                    const btnSend = document.createElement('button'); btnSend.className = 'btn signin'; btnSend.textContent = 'Send Now'; btnSend.addEventListener('click', () => sendQueueItem(idx));
-                    const btnRemove = document.createElement('button'); btnRemove.className = 'btn danger'; btnRemove.textContent = 'Remove'; btnRemove.addEventListener('click', () => removeQueueItem(idx));
-                    row.appendChild(info); row.appendChild(document.createTextNode(' ')); row.appendChild(btnSend); row.appendChild(document.createTextNode(' ')); row.appendChild(btnRemove);
-                    el.appendChild(row);
-                });
-            }
-
-            // Active connections (simple heartbeat via localStorage)
-            const CONN_KEY = 'activeConnections:v1';
-            const myConnId = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-            function heartbeat() {
-                const session = JSON.parse(localStorage.getItem('session') || '{}');
-                const all = JSON.parse(localStorage.getItem(CONN_KEY) || '{}');
-                all[myConnId] = { email: session.email || 'anonymous', ts: Date.now() };
-                // cleanup older than 45s
-                Object.keys(all).forEach(k => { if (Date.now() - (all[k].ts || 0) > 45000) delete all[k]; });
-                localStorage.setItem(CONN_KEY, JSON.stringify(all));
-                renderConnections();
-            }
-            function renderConnections() {
-                const el = document.getElementById('connected-list'); if (!el) return;
-                const all = JSON.parse(localStorage.getItem(CONN_KEY) || '{}');
-                el.innerHTML = '';
-                Object.keys(all).forEach(k => { const u = all[k]; const div = document.createElement('div'); div.textContent = `${u.email} — active ${(Math.floor((Date.now() - u.ts) / 1000))}s ago`; el.appendChild(div); });
-            }
-
-            // Chart helpers
-            let overviewChart = null;
-            function renderOverviewChart(stats) {
-                const ctx = document.getElementById('overview-chart').getContext('2d');
-                const labels = ['Upcoming', 'Absent', 'Missed', 'Queued SMS'];
-                const data = [stats.upcoming || 0, stats.absent || 0, stats.missed || 0, stats.queued || 0];
-                if (!overviewChart) {
-                    overviewChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Counts', data, backgroundColor: ['#4caf50', '#ff9800', '#f44336', '#607d8b'] }] }, options: { responsive: true } });
-                } else { overviewChart.data.datasets[0].data = data; overviewChart.update(); }
-            }
-
-            // Patient chart (simple line for demo)
-            let patientChart = null;
-            function renderPatientChart(points, label) {
-                const ctx = document.getElementById('patient-chart').getContext('2d');
-                const labels = points.map(p => p.t);
-                const data = points.map(p => p.v);
-                if (!patientChart) {
-                    patientChart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: label || 'Metric', data, fill: false, borderColor: '#2196f3' }] }, options: { responsive: true } });
-                } else { patientChart.data.labels = labels; patientChart.data.datasets[0].data = data; patientChart.update(); }
-            }
-
-            // load consultations and populate UI
-            async function loadAndRender() {
-                const res = await safeCall('fetchAllConsultations');
+            async function load() {
+                const res = await fetchAllConsultations();
                 const out = document.getElementById('admin-list');
                 if (res.error) return out.textContent = 'Error loading consultations';
                 const items = res.data || [];
-                if (!items.length) out.textContent = 'No consultations yet.'; else out.innerHTML = '';
-                items.forEach(it => {
-                    const div = document.createElement('div'); div.className = 'card';
-                    const title = document.createElement('h3'); title.textContent = `${it.patient_name} — ${it.consultation_code}`;
-                    const p = document.createElement('p'); p.innerHTML = `Fee: <strong>${Number(it.fee || 0).toLocaleString()}</strong> — Registered: ${it.cashier_registered_at || '-'}`;
-                    const notes = document.createElement('p'); notes.style.marginTop = '8px'; notes.textContent = `Provider notes: ${it.provider_notes || '-'}`;
-                    const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `Status: ${it.status || '-'}`;
-                    const btnAbsent = document.createElement('button'); btnAbsent.className = 'btn signup'; btnAbsent.textContent = it.absent ? 'Marked Absent' : 'Mark Absent'; btnAbsent.dataset.code = it.consultation_code;
-                    const btnRemind = document.createElement('button'); btnRemind.className = 'btn signin'; btnRemind.textContent = 'Remind Patient'; btnRemind.dataset.code = it.consultation_code;
-                    // new SMS quick actions
-                    const btnBefore = document.createElement('button'); btnBefore.className = 'btn info'; btnBefore.textContent = 'SMS: Before Checkup'; btnBefore.dataset.code = it.consultation_code; btnBefore.dataset.type = 'before';
-                    const btnMissed = document.createElement('button'); btnMissed.className = 'btn danger'; btnMissed.textContent = 'SMS: Missed Patient'; btnMissed.dataset.code = it.consultation_code; btnMissed.dataset.type = 'missed';
-                    const ctrl = document.createElement('div'); ctrl.style.marginTop = '8px'; ctrl.appendChild(btnAbsent); ctrl.appendChild(btnRemind); ctrl.appendChild(btnBefore); ctrl.appendChild(btnMissed);
-                    div.appendChild(title); div.appendChild(p); div.appendChild(notes); div.appendChild(meta); div.appendChild(ctrl);
-                    out.appendChild(div);
-                });
-                // absent list
+                if (!items.length) return out.textContent = 'No consultations yet.';
+                out.innerHTML = '';
+                items.forEach(it => renderCard(out, it));
+                // update absent list
                 refreshAbsentList(items);
-                // update overview chart
-                const stats = { upcoming: items.filter(i => i.status === 'upcoming').length, absent: items.filter(i => i.absent).length, missed: items.filter(i => i.status === 'missed').length, queued: loadSmsQueue().length };
-                renderOverviewChart(stats);
-                // populate patient select
-                const sel = document.getElementById('patient-select'); if (sel) { sel.innerHTML = '<option value="">-- choose --</option>'; items.forEach(it => { const opt = document.createElement('option'); opt.value = it.consultation_code; opt.textContent = `${it.patient_name} (${it.consultation_code})`; sel.appendChild(opt); }); }
             }
 
-            // reuse existing refreshAbsentList logic
+            // Absent today quick list
+            const absentSection = document.createElement('section');
+            absentSection.innerHTML = '<h2>Absent Patients (marked)</h2><div id="absent-list"></div>';
+            document.querySelector('.container').appendChild(absentSection);
             function refreshAbsentList(items) {
                 const al = document.getElementById('absent-list'); if (!al) return;
                 al.innerHTML = '';
                 (items || []).filter(x => x.absent).forEach(a => { const el = document.createElement('div'); el.className = 'consultation'; el.textContent = `${a.patient_name} — ${a.consultation_code} — ${a.absent_marked_at || ''}`; al.appendChild(el); });
             }
 
-            // send reminder wrapper: queue if offline
-            async function sendReminderToPatientWrapper(consultationCode, message, type) {
-                // attempt to locate patient contact
-                const res = await safeCall('fetchAllConsultations');
-                const items = res.data || [];
-                const it = items.find(x => x.consultation_code === consultationCode) || {};
-                const to = it.patient_phone || it.phone || it.mobile || it.contact || it.patient_name || 'unknown';
-                // choose a default template when type provided and no explicit message
-                if (!message && type) {
-                    if (type === 'before') message = `Reminder: You have an upcoming checkup. Please arrive on time.`;
-                    else if (type === 'missed') message = `We missed you at your appointment. Please contact us to reschedule.`;
-                }
-                const sms = { to, message, consultation_code: consultationCode, type: type || 'generic' };
-                if (!navigator.onLine) { enqueueSms(sms); alert('Offline — queued message'); return { ok: true, queued: true }; }
-                // if online, try existing sendReminderToPatient implementation first
-                if (window.sendReminderToPatient && typeof window.sendReminderToPatient === 'function') {
-                    try { return await window.sendReminderToPatient(consultationCode, message); } catch (e) { enqueueSms(sms); return { error: e.message || 'send failed - queued' }; }
-                }
-                // fallback: enqueue then process queue
-                enqueueSms(sms);
-                await processQueue();
-                return { ok: true };
-            }
+            load();
+            setInterval(load, 20000);
 
-            // wire global name (used earlier in this file)
-            window.sendReminderToPatient = sendReminderToPatientWrapper;
+            // Refresh when other windows signal an update
+            window.addEventListener('storage', (e) => { if (e.key === 'consultation-updated') load(); });
+            document.getElementById('a11y-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('accessible'); });
+            document.getElementById('contrast-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('high-contrast'); });
 
-            // UI wiring after login
-            function initAfterLogin() {
-                const sess = JSON.parse(localStorage.getItem('session') || '{}');
-                document.getElementById('welcome').textContent = sess ? `Welcome, ${sess.name || sess.email} (${sess.role})` : 'Not signed in';
-                document.getElementById('signout').addEventListener('click', () => { localStorage.removeItem('session'); window.location.reload(); });
-                // start heartbeat
-                heartbeat(); setInterval(heartbeat, 10000);
-                // initial render
-                renderSmsQueue(); loadAndRender();
-                setInterval(loadAndRender, 20000);
-                // process queue button
-                document.getElementById('process-queue').addEventListener('click', processQueue);
-                // when online, auto-process
-                window.addEventListener('online', () => { processQueue(); });
-                // accessibility toggles
-                document.getElementById('a11y-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('accessible'); });
-                document.getElementById('contrast-toggle').addEventListener('click', () => { document.querySelector('.container').classList.toggle('high-contrast'); });
-                // schedule sender
-                document.getElementById('send-sched').addEventListener('click', async () => {
-                    const date = document.getElementById('sched-date').value;
-                    const message = document.getElementById('sched-msg').value.trim();
-                    const targets = [];
-                    if (document.getElementById('t-cashier').checked) targets.push('cashier');
-                    if (document.getElementById('t-provider').checked) targets.push('provider');
-                    if (document.getElementById('t-pharma').checked) targets.push('pharmacist');
-                    if (!message || !date) return alert('Please provide date and message');
-                    const r = await safeCall('sendSchedule', { date, message, targets });
-                    if (r && !r.error) alert('Schedule sent'); else alert('Schedule failed: ' + (r && r.error));
-                    loadAndRender();
-                });
+            document.getElementById('send-sched').addEventListener('click', async () => {
+                const date = document.getElementById('sched-date').value;
+                const message = document.getElementById('sched-msg').value.trim();
+                const targets = [];
+                if (document.getElementById('t-cashier').checked) targets.push('cashier');
+                if (document.getElementById('t-provider').checked) targets.push('provider');
+                if (document.getElementById('t-pharma').checked) targets.push('pharmacist');
+                if (!message || !date) return alert('Please provide date and message');
+                try {
+                    await sendSchedule({ date, message, targets });
+                    alert('Schedule sent');
+                    // refresh absent list in case schedule relates to absent reminders
+                    const res2 = await fetchAllConsultations(); if (!res2.error) refreshAbsentList(res2.data || []);
+                } catch (e) { alert('Failed to send schedule'); }
+            });
 
-                // event delegation for absent, remind, and quick SMS buttons
-                document.addEventListener('click', async (ev) => {
-                    const t = ev.target; if (!t.matches('button[data-code]')) return;
+            // event delegation for absent & remind buttons
+            document.addEventListener('click', async (ev) => {
+                const t = ev.target;
+                if (t.matches('button[data-code]')) {
                     const code = t.getAttribute('data-code');
-                    const btnType = t.dataset.type;
                     if (t.textContent.includes('Absent')) {
-                        const r = await safeCall('markAbsent', code, true);
-                        if (r && !r.error) { t.textContent = 'Marked Absent'; loadAndRender(); } else alert('Failed to mark absent');
-                    } else if (btnType === 'before' || btnType === 'missed') {
-                        // quick SMS templates
-                        const rr = await sendReminderToPatientWrapper(code, null, btnType);
-                        if (rr && !rr.error) alert('Reminder queued/sent'); else alert('Failed to queue/send reminder');
+                        const r = await markAbsent(code, true);
+                        if (r.error) return alert('Failed to mark absent');
+                        t.textContent = 'Marked Absent';
+                        const res2 = await fetchAllConsultations(); if (!res2.error) refreshAbsentList(res2.data || []);
                     } else if (t.textContent.includes('Remind')) {
                         const msg = prompt('Reminder message to send to patient (SMS):', 'Please attend your appointment.');
                         if (!msg) return;
-                        const rr = await sendReminderToPatientWrapper(code, msg);
-                        if (rr && !rr.error) alert('Reminder queued/sent'); else alert('Failed to send reminder');
+                        const r = await sendReminderToPatient(code, msg);
+                        if (r.error) return alert('Failed to send reminder: ' + r.error);
+                        alert('Reminder sent');
                     }
-                });
-
-                // patient select chart
-                const sel = document.getElementById('patient-select');
-                sel.addEventListener('change', async (e) => {
-                    const code = e.target.value; if (!code) return;
-                    const res = await safeCall('fetchAllConsultations'); const items = res.data || []; const it = items.find(x => x.consultation_code === code);
-                    if (!it) return alert('Patient not found');
-                    // build demo points from any vitals or timestamps
-                    const points = [];
-                    const base = Date.now() - (6 * 24 * 3600 * 1000);
-                    for (let i = 0; i < 7; i++) points.push({ t: new Date(base + i * 24 * 3600 * 1000).toLocaleDateString(), v: Math.round(120 + Math.random() * 30) });
-                    renderPatientChart(points, it.patient_name || 'Patient');
-                });
-
-                // Admin SMS Chat wiring
-                const chatSelect = document.getElementById('chat-consult-select');
-                const chatMessages = document.getElementById('chat-messages');
-                const chatInput = document.getElementById('chat-input');
-                const chatSend = document.getElementById('chat-send');
-
-                async function loadChatOptions() {
-                    const r = await safeCall('fetchAllConsultations'); const items = r.data || [];
-                    chatSelect.innerHTML = '<option value="">-- choose --</option>';
-                    items.forEach(it => { const opt = document.createElement('option'); opt.value = it.consultation_code; opt.textContent = `${it.patient_name} (${it.consultation_code})`; chatSelect.appendChild(opt); });
                 }
-
-                async function loadMessagesFor(code) {
-                    chatMessages.innerHTML = 'Loading...';
-                    if (!code) { chatMessages.innerHTML = ''; return; }
-                    if (!window.fetchMessages) { chatMessages.innerText = 'Message API not available'; return; }
-                    const res = await window.fetchMessages({ consultation_code: code });
-                    if (res.error) return chatMessages.innerText = 'Failed to load messages';
-                    chatMessages.innerHTML = '';
-                    (res.data || []).forEach(m => {
-                        const d = document.createElement('div'); d.style.padding = '6px'; d.style.borderBottom = '1px dashed #eee';
-                        d.innerHTML = `<strong>${m.sender}</strong>: ${m.message} <div style="font-size:11px;color:#666">${m.ts}</div>`;
-                        chatMessages.appendChild(d);
-                    });
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-
-                chatSelect.addEventListener('change', (e) => { loadMessagesFor(e.target.value); });
-                chatSend.addEventListener('click', async () => {
-                    const code = chatSelect.value; if (!code) return alert('Choose consultation');
-                    const r = await safeCall('fetchAllConsultations'); const items = r.data || []; const it = items.find(x => x.consultation_code === code) || {};
-                    const phone = it.contact_primary || it.contact_secondary || it.patient_phone || it.phone || null;
-                    if (!phone) return alert('No phone number for this patient');
-                    const msg = chatInput.value.trim(); if (!msg) return alert('Type a message');
-                    // use window.sendSms if available, otherwise enqueue locally
-                    if (window.sendSms) { await window.sendSms({ to: phone, message: msg, consultation_code: code, patient_name: it.patient_name }); }
-                    enqueueSms({ to: phone, message: msg, consultation_code: code, patient_name: it.patient_name, type: 'chat' });
-                    chatInput.value = '';
-                    await loadMessagesFor(code);
-                    alert('Message queued/sent');
-                });
-
-                // populate chat options on load
-                loadChatOptions();
-                // listen for consultation updates globally
-                if (window.Comm) {
-                    Comm.onMessage((m) => {
-                        if (m && m.type === 'consultation_update') {
-                            // re-render admin list and connected items
-                            loadAndRender();
-                            renderSmsQueue();
-                            console.info('Admin received consultation update', m.payload);
-                        }
-                    });
-                }
-                // Manage accounts UI (delete account, toggle data sharing)
-                function renderAccounts() {
-                    const el = document.getElementById('manage-accounts'); if (!el) return;
-                    const users = usersGet() || [];
-                    if (!users.length) { el.textContent = 'No user accounts.'; return; }
-                    el.innerHTML = '';
-                    users.forEach((u, idx) => {
-                        const row = document.createElement('div'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.justifyContent = 'space-between'; row.style.gap = '8px'; row.style.padding = '8px 0';
-                        const info = document.createElement('div'); info.innerHTML = `<strong>${u.name || u.email}</strong> <small>${u.role || ''}</small> <div style="font-size:12px;color:#666">${u.email || ''}</div>`;
-                        const controls = document.createElement('div');
-                        const shareBtn = document.createElement('button'); shareBtn.className = 'btn signin'; shareBtn.textContent = u.share_data ? 'Sharing: ON' : 'Sharing: OFF';
-                        shareBtn.addEventListener('click', () => {
-                            const arr = usersGet(); arr[idx].share_data = !arr[idx].share_data; usersSet(arr); renderAccounts();
-                        });
-                        const delBtn = document.createElement('button'); delBtn.className = 'btn danger'; delBtn.textContent = 'Delete Account';
-                        delBtn.addEventListener('click', () => {
-                            if (!confirm('Delete account ' + (u.email || u.name) + '? This cannot be undone.')) return;
-                            const arr = usersGet(); arr.splice(idx, 1); usersSet(arr); renderAccounts();
-                        });
-                        controls.appendChild(shareBtn); controls.appendChild(document.createTextNode(' ')); controls.appendChild(delBtn);
-                        row.appendChild(info); row.appendChild(controls);
-                        el.appendChild(row);
-                    });
-                }
-                renderAccounts();
-            }
-
-            // start
-            if (!localStorage.getItem('session')) showLoginModal(); else initAfterLogin();
+            });
         })();
     </script>
 </body>

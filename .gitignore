@@ -1,4 +1,6 @@
-.env
-back-end/node_modules
-front-end/node_modules
-back-end/dist
+# Ignore local config with secrets
+config.js
+
+# Node modules or other local artifacts (optional)
+node_modules/
+data/

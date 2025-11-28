@@ -17,7 +17,7 @@
 </head>
 
 <body>
-    <main class="page page-centered">
+    <main class="page">
         <div class="container">
             <h1>Healthcare Provider Dashboard</h1>
             <p id="welcome">Loading...</p>
@@ -40,7 +40,6 @@
     </main>
 
     <script src="app.js"></script>
-    <script src="comm.js"></script>
     <script>
         (async function () {
             const sess = localStorage.getItem('session');
@@ -187,10 +186,6 @@
                         area.style.display = 'none';
                         // reload content headline
                         document.getElementById('prov-reader-content').querySelector('.patient-summary h2').textContent = `${patientFields.patient_name} — ${code}`;
-                        // broadcast update to other dashboards
-                        if (window.Comm) {
-                            Comm.sendConsultationUpdate({ consultation_code: code, patient: patientFields, notes, medication_refill: refill, fromRole: 'provider' });
-                        }
                     });
                 });
             }));
